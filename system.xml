@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<system>
+<manufacturer>TANDBERG</manufacturer>
+<model>Telepresence Server 8710</model>
+<serial>SM011835</serial>
+<softwareVersion>2.3(1.48)</softwareVersion>
+<buildVersion>13.0(1.48)</buildVersion>
+<hostName>dt12b7</hostName>
+<ipAddress>172.16.1.10</ipAddress>
+<ipAddressV6>2001:420:40ff:ff0a:20d:7cff:fe10:21c3</ipAddressV6>
+<macAddress>00:0D:7C:11:21:C3</macAddress>
+<gatekeeperUsage>Yes</gatekeeperUsage>
+<gatekeeperAddress>mainvcs.test.lal</gatekeeperAddress>
+<gatekeeperIds>dt12b7,dt12b7-l,dt12b7-c,dt12b7-r</gatekeeperIds>
+<sipRegistrarUsage>Yes</sipRegistrarUsage>
+<sipRegistrarAddressmainvcs.test.lal</sipRegistrarAddress>
+<sipRegistrarDomain>test.lal</sipRegistrarDomain>
+<sipTrunkUsage>No</sipTrunkUsage>
+<sipTrunkAddress/>
+<sipTrunkDomain/>
+<isMaster>Yes</isMaster>
+<clusterType>unclustered</clusterType>
+<totalVideoPorts>12</totalVideoPorts>
+<totalContentPorts>12</totalContentPorts>
+<totalAudioOnlyPorts>10</totalAudioOnlyPorts>
+<uptimeSeconds>230641</uptimeSeconds>
+</system>
