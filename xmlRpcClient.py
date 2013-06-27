@@ -39,10 +39,10 @@ def conference_enumerate():
 
 def conference_status(conferenceGUID):
   # Verify conferenceGUID syntax
-  if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
+  '''if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
   	print "Invalid conferenceGUID value"
   	return -1
-
+  '''
   parameters = {'conferenceGUID' :conferenceGUID,'authenticationUser':'sut','authenticationPassword':'1qaz2wsx'}
   params = tuple([parameters])
   xmlrpccall = xmlrpclib.dumps(params,'conference.status',encoding='UTF-8')
@@ -65,7 +65,7 @@ def list_methods():
 try:
 	show_version()
 	conference_enumerate()
-	conference_status('8ca0c690-dd82-11e2-84f9-000d7c112b10')
+	conference_status('8ca0c690-dd82-11e2-84f9-000d7c112b1')
 
 except Exception as err:
     print("A fault occurred!")

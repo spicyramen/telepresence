@@ -10,11 +10,12 @@ from types import *
 import xmlrpclib
 import csv
 import threading
+import logging
 
 
 hostname = "localhost"
 port     = 8080
-version  = '3.0(58)'
+version  = '2.3(1.48)'
 configurationFile = 'configuration.xml'
 configParameters = [
 'portsContentFree',
@@ -63,6 +64,8 @@ dataType =  [
                  IntType,  		# 20 - h239ContributionID
 ]
 
+
+
 # Restrict to a particular path.
 
 class RequestHandler(SimpleXMLRPCRequestHandler):
@@ -74,24 +77,24 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
 
 def _init_():
 	if read_configuration() == -1:
-	   print "Error invalid configuration"
+	   logging.warning("Error invalid configuration")
 
 # Run the server's main loop
 def start_xmplrpc():
-	print "Cisco TelePresence Server 8710 Emulator started...."
-	print "Hostname: " + hostname +  " Port: " + str(port)
-	print "Version:  " + version
+	logging.info("Cisco TelePresence Server 8710 Emulator started....")
+	logging.info("Hostname: " + hostname +  " Port: " + str(port))
+	logging.info("Version:  " + version)
 	try:		
-		print "XML-RPC Server initialized..."
+		logging.info("XML-RPC Server initialized...")
 		threading.Thread(target=server.serve_forever()).start()
 	except KeyboardInterrupt:
-		print "Cisco TelePresence Server 8710 Emulator stopping...."
+		logging.info("Cisco TelePresence Server 8710 Emulator stopping....")
 	except Exception, e:
-		print "Exception: " + str(e)
+		logging.error("Exception: " + str(e))
 
 # Verify configuration file
 def read_configuration():
-	print "Reading system configuration..."
+	logging.info("Reading system configuration...")
 	try:
 		with open(configurationFile,"r") as config_file:
 			try:
@@ -110,9 +113,9 @@ def read_configuration():
 def validate_config(fileparams):
 	for param in fileparams[0]:
 		if param in configParameters:
-			print 'validate_config() Valid param: ' + param
+			logging.info('validate_config() Valid param: ' + param)
 		else:
-			print 'validate_config() Invalid param: ' + param
+			logging.info('validate_config() Invalid param: ' + param)
 			return -1
 
 def file_len(fname):
@@ -124,14 +127,14 @@ def file_len(fname):
 # Verify records in file
 def validate_data(filerecords):
 
-	print "Validating system configuration data..."
+	logging.info("Validating system configuration data...")
 	file_len(configurationFile)
-	print "validate_data() Processing " + str(file_len(configurationFile) -1 ) + " record(s)..."
+	logging.info("validate_data() Processing " + str(file_len(configurationFile) -1 ) + " record(s)...")
 	del filerecords[0]
 	if len(filerecords)<1:
 		return -1
 	for record in filerecords:
-		print record
+		logging.info(record)
 		paramNumber = 0
 		if len(record) == 21:
 			for field in record:
@@ -141,10 +144,10 @@ def validate_data(filerecords):
 					paramNumber += 1    						
     			else:
     				if paramNumber!=21:
-	    				print "validate_data() Invalid data paramNumber: " + str(paramNumber)
+	    				logging.info("validate_data() Invalid data paramNumber: " + str(paramNumber))
     					return -1
 		else:
-			print "Invalid record " + record
+			logging.warning("Invalid record " + record)
 			return -1	
 
 # Cast value from string
@@ -242,15 +245,22 @@ def conference_enumerate(params):
 
 def conference_status(conferenceGUID):
 	if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
-  		print "Invalid conferenceGUID value"
-  	
+  		logging.warning("conference_status() Invalid conferenceGUID value")
+  		return fault_code("Invalid parameter",102);
+
 	response = {'portsContentFree': 24, 'locked': False, 'oneTableMode': 0, 'portsAudioFree': 10, 'roundTableEnable': False, 'videoPortLimit': 0, 'conferenceID': 1000, 'persistent': True, 'portsVideoFree': 24, 'audioPortLimit': 0, 'conferenceGUID': '8ca0c690-dd82-11e2-84f9-000d7c112b10', 'audioPortLimitSet': False, 'pin': '', 'active': True, 'videoPortLimitSet': False, 'registerWithGatekeeper': True, 'numericID': '8100', 'participantList': [], 'recording': False, 'registerWithSipRegistrar': True, 'h239ContributionID': 0}
 	return response
 
+def fault_code(string,code):
+    	response = {'faultCode' :code,'faultString':string }
+	return response
+
+
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
-    def show_version(self):
-        return version
+
+		def show_version(self):
+			return version
 
 # Create server
 server = SimpleXMLRPCServer((hostname, port),requestHandler=RequestHandler,logRequests=True)
@@ -260,11 +270,18 @@ server.register_function(conference_status, 'conference.status')
 server.register_introspection_functions()
 server.register_instance(Methods())
 
-# Start
-try:
-	_init_()
-	start_xmplrpc()
-except KeyboardInterrupt:
-	print "Cisco TelePresence Server 8710 Emulator stopping...."
-except Exception,e:
-	print "Exception found " + str(e)
+def main():
+
+	logging.basicConfig(filename='xmlRpcServer.log', level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')	
+	logging.info("-----------------------Initializing system------------------------")
+	print("-----------------------Initializing system------------------------")
+	try:
+		_init_()
+		start_xmplrpc()
+	except KeyboardInterrupt:
+		logging.info ("Cisco TelePresence Server 8710 Emulator stopping....")
+	except Exception,e:
+		logging.error("Exception found " + str(e))
+
+if __name__ == '__main__':
+    main()
