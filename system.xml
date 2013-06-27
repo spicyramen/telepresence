@@ -13,7 +13,7 @@
 <gatekeeperAddress>mainvcs.test.lal</gatekeeperAddress>
 <gatekeeperIds>dt12b7,dt12b7-l,dt12b7-c,dt12b7-r</gatekeeperIds>
 <sipRegistrarUsage>Yes</sipRegistrarUsage>
-<sipRegistrarAddressmainvcs.test.lal</sipRegistrarAddress>
+<sipRegistrarAddress>mainvcs.test.lal</sipRegistrarAddress>
 <sipRegistrarDomain>test.lal</sipRegistrarDomain>
 <sipTrunkUsage>No</sipTrunkUsage>
 <sipTrunkAddress/>
