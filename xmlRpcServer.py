@@ -18,7 +18,7 @@ hostname = "localhost"
 port     = 8080
 version  = '2.3(1.48)'
 configurationFile = 'configuration.xml'
-systemFile = 'system.xml'			
+systemFile = 'system.xml'
 systemUserName = "sut"
 systemPassWord = "1qaz2wsx"
 
@@ -121,8 +121,36 @@ dataType =  [
 
 # Restrict to a particular path.
 
-class RequestHandler(SimpleXMLRPCRequestHandler):
+class RemoteObject:    
+    def return10(self):
+        return 10
+
+class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 	rpc_paths = ('/RPC2',)
+	def do_POST(self):
+		clientIP, port = self.client_address
+		# Log client IP and Port
+		logging.info('Client IP: %s - Port: %s' % (clientIP, port))
+		try:
+			data = self.rfile.read(int(self.headers["content-length"]))
+			logging.info('Client request: \n%s\n' % data)
+			response = self.server._marshaled_dispatch(data, getattr(self, '_dispatch', None))
+			logging.info('Server response: \n%s\n' % response)
+		except: # This should only happen if the module is buggy
+			# internal error, report as HTTP server error
+			self.send_response(500)
+			self.end_headers()
+		else:
+			# got a valid XML RPC response
+			self.send_response(200)
+			self.send_header("Content-type", "text/xml")
+			self.send_header("Content-length", str(len(response)))
+			self.end_headers()
+			self.wfile.write(response)
+			# shut down the connection
+			self.wfile.flush()
+			self.connection.shutdown(1)
+
 
 ###########################################################################################
 # System configuration
@@ -131,22 +159,31 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
 def _init_():
 	if read_configuration() == -1:
 		print "Error invalid configuration"
-		logging.warning("Error invalid configuration")
+		logging.error("Error invalid configuration")
+		print "Program exiting...."
+		logging.error("Program exiting....")	
+		raise SystemExit
 
 # Run the server's main loop
-def start_xmplrpc():
+def startXmlRpc():
+
 	logging.info("Cisco TelePresence Server 8710 Emulator started....")
+	print "Cisco TelePresence Server 8710 Emulator started...."
 	logging.info("Hostname: " + hostname +  " Port: " + str(port))
+	print "Hostname: " + hostname +  " Port: " + str(port)
 	logging.info("Version:  " + version)
+	print "Version:  " + version
 	try:		
 		logging.info("XML-RPC Server initialized...")
 		threading.Thread(target=server.serve_forever()).start()
 	except KeyboardInterrupt:
 		print ""
 		logging.info("Cisco TelePresence Server 8710 Emulator stopping....")
-	except Exception, e:
-		print ""
-		logging.error("Exception: " + str(e))
+	except Exception as instance:
+		print type(inst)
+		print inst.args
+		logging.error("Exception: " + str(instance))
+
 
 # Verify configuration file
 def read_configuration():
@@ -169,7 +206,6 @@ def read_configuration():
 def validate_config(fileparams):
 	for param in fileparams[0]:
 		if param in configParameters:
-			print ""
 			logging.info('validate_config() Valid param: ' + param)
 		else:
 			logging.info('validate_config() Invalid param: ' + param)
@@ -223,7 +259,7 @@ def validate_data(fileRecords):
 
 
 #Verifies authentication
-def xml_handler(msg):
+def xml_RequestHandler(msg):
 	username = ""
 	password = ""
 	params = copy.deepcopy(msg)
@@ -244,7 +280,7 @@ def xml_handler(msg):
 		return 34			
 
 #Find param X in conference record
-def find_param_conference(param):
+def find_paramin_conference(param):
 	if param >= 0 and param < len(conferenceParameters):
 		return conferenceParameters[param]
 	else:
@@ -366,37 +402,53 @@ def castRecordElement(element):
 		return type(element)
 
 
-
-  			
-
 ###########################################################################################
 # API Method implementation
 ###########################################################################################
 
 
-
 def ping_function(msg):
+	logInfo("ping_function() API ping")
 	if msg == 'REQUEST':
 	 return 'REPLY'
 	else:
 	 return 'INVALID MESSAGE: ' + msg
+
+def conference_create(msg):
+	return msg
+
+def conference_delete(msg):
+	return msg
 
 def conference_enumerate(msg):
 	# 	Optional params could be: 	
 	#					enumerateID  integer
 	#					activeFilter boolean
 	#	conferenceName,conferenceID,conferenceGUID,active,persistent,locked,numericID,registerWithGatekeeper,registerWithSIPRegistrar,h239ContributionEnabled,pin
-	print("conference_enumerate() API conference.enumerate")
 	logInfo("conference_enumerate() API conference.enumerate")
 	response = {'conferenceName' :'AT&T TelePresence Solution connection test','conferenceID':45966,'conferenceGUID':'6b30aed0-be06-11e2-af9d-000d7c112b10','active':True,'persistent':False,'locked':False,
 	'numericID':'8100','registerWithGatekeeper':False,'registerWithSIPRegistrar':False,'h239ContributionEnabled':False,'pin':''}
 	return response
 
+def conference_invite(msg):
+	return msg
+
+def conference_senddtmf(msg):
+	return msg
+
+def conference_sendmessage(msg):
+	return msg	 
+
+def conference_sendwarning(msg):
+	return msg	
+
+def conference_set(msg):
+	return msg
+
 def conference_status(msg):
 	# 	Verify conferenceGUID status
-	print("conference_status() API conference.status ")
 	logInfo("conference_status() API conference.status ")
-	params = xml_handler(msg)
+	params = xml_RequestHandler(msg)
 	if (params == 34):
 		return fault_code(systemErrors[34],34)
 	elif(params == 101):
@@ -409,6 +461,9 @@ def conference_status(msg):
 	  	else:
 	  		return fault_code(systemErrors[4],4)
 
+def conference_uninvite(msg):
+	return msg
+
 def fault_code(string,code):
     	xmlResponse = {'faultCode' :code,'faultString':string }
     	logInfo(xmlResponse)
@@ -417,33 +472,38 @@ def fault_code(string,code):
 
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
-
 		def show_version(self):
 			print("show_version() API show.version")
 			logInfo("show_version() API show.version")
 			return version
 
 # Create server
-server = SimpleXMLRPCServer((hostname, port),requestHandler=RequestHandler,logRequests=True)
+server = SimpleXMLRPCServer((hostname, port),requestHandler=XmlRequestHandler,logRequests=True)
 server.register_function(ping_function, 'ping')
+server.register_function(conference_create, 'cconference.create')
+server.register_function(conference_delete, 'conference.delete')
 server.register_function(conference_enumerate, 'conference.enumerate')
+server.register_function(conference_invite, 'conference.invite')
+server.register_function(conference_senddtmf, 'conference.senddtmf')
+server.register_function(conference_sendmessage, 'conference.sendmessage')
+server.register_function(conference_sendwarning, 'conference.sendwarning')
+server.register_function(conference_set, 'conference.set')
 server.register_function(conference_status, 'conference.status')
-server.register_introspection_functions()
+server.register_function(conference_uninvite, 'conference.uninvite')
+server.register_instance(RemoteObject())
 server.register_instance(Methods())
 
 def main():
 
-	logging.basicConfig(filename='tpsServer.log', level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')	
-	logging.info("-----------------------Initializing system------------------------")
-	print("-----------------------Initializing system------------------------")
+	logging.basicConfig(filename='tpsServer.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')	
+	logging.info("-----------------------Initializing server------------------------")
+	print "-----------------------Initializing server------------------------"
 	try:
 		_init_()
-		start_xmplrpc()		
+		startXmlRpc()		
 	except KeyboardInterrupt:
-		print ""
 		logging.info ("Cisco TelePresence Server 8710 Emulator stopping....")
 	except Exception,e:
-		print ""
 		logging.error("Exception found " + str(e))
 
 if __name__ == '__main__':

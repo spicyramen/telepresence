@@ -22,6 +22,9 @@ def ping(msg):
 def show_version():
   print xmlRpcClient.show_version()
 
+def conference_create():
+  print xmlRpcClient.conference.create()  
+
 def conference_enumerate():
   parameters = {'activeFilter' :False,'authenticationUser':username,'authenticationPassword':password}
   params = tuple([parameters])
@@ -68,10 +71,10 @@ def list_methods():
   print xmlRpcClient.system.listMethods()
 
 try:
-	show_version()
-	conference_enumerate()
-	conference_status("8ca0c690-dd82-11e2-84f9-000d7c112b19")
-
+    show_version()
+    conference_create()
+    conference_enumerate()
+    conference_status("8ca0c690-dd82-11e2-84f9-000d7c112b19")
 except Exception as err:
     print("A fault occurred!")
     print "%s" % err
