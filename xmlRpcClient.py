@@ -11,6 +11,8 @@ import requests
 hostname = 'localhost'
 port     = '8080'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
+username = "sut"
+password = "1qaz2wsx"
 
 xmlRpcClient = xmlrpclib.ServerProxy(url,verbose=True,encoding='UTF-8')
 
@@ -21,7 +23,7 @@ def show_version():
   print xmlRpcClient.show_version()
 
 def conference_enumerate():
-  parameters = {'activeFilter' :False,'authenticationUser':'sut','authenticationPassword':'1qaz2wsx'}
+  parameters = {'activeFilter' :False,'authenticationUser':username,'authenticationPassword':password}
   params = tuple([parameters])
   xmlrpccall = xmlrpclib.dumps(params,'conference.enumerate',encoding='UTF-8')
   response = requests.request( 'POST', url,
@@ -43,7 +45,10 @@ def conference_status(conferenceGUID):
   	print "Invalid conferenceGUID value"
   	return -1
   '''
-  parameters = {'conferenceGUID' :conferenceGUID,'authenticationUser':'sut','authenticationPassword':'1qaz2wsx'}
+  if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
+      return
+
+  parameters = {'conferenceGUID' :conferenceGUID,'authenticationUser':username,'authenticationPassword':password}
   params = tuple([parameters])
   xmlrpccall = xmlrpclib.dumps(params,'conference.status',encoding='UTF-8')
   response = requests.request( 'POST', url,
@@ -65,7 +70,7 @@ def list_methods():
 try:
 	show_version()
 	conference_enumerate()
-	conference_status('8ca0c690-dd82-11e2-84f9-000d7c112b1')
+	conference_status("8ca0c690-dd82-11e2-84f9-000d7c112b19")
 
 except Exception as err:
     print("A fault occurred!")
