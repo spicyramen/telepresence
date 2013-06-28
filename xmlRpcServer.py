@@ -4,10 +4,13 @@
 		Date: June 2013
 		Emulates TelePresence Server 8710 Server API
 '''
-
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
+from os import urandom
+from random import randrange
+from itertools import islice, imap, repeat
 from types import *
+import string
 import xmlrpclib
 import csv
 import threading
@@ -118,12 +121,24 @@ dataType =  [
     IntType,  		# 20 - h239ContributionID
 ]
 
+#Stores information from XML file
+#conferenceID,conferenceGUID,numericID
+systemConfigurationDb = [
+{1000,'8ca0c690-dd82-11e2-84f9-000d7c112b10',8100},
+{1001,'8ca0c690-dd82-11e2-84f9-000d7c112b11',8101},
+{1002,'8ca0c690-dd82-11e2-84f9-000d7c112b12',8102},
+{1003,'8ca0c690-dd82-11e2-84f9-000d7c112b13',8103},
+{1004,'8ca0c690-dd82-11e2-84f9-000d7c112b14',8104},
+{1005,'8ca0c690-dd82-11e2-84f9-000d7c112b15',8105},
+{1006,'8ca0c690-dd82-11e2-84f9-000d7c112b16',8106},
+{1007,'8ca0c690-dd82-11e2-84f9-000d7c112b17',8107},
+{1008,'8ca0c690-dd82-11e2-84f9-000d7c112b18',8108},
+{1009,'8ca0c690-dd82-11e2-84f9-000d7c112b19',8109},
+{1010,'8ca0c690-dd82-11e2-84f9-000d7c112b20',8110},
+{1011,'8ca0c690-dd82-11e2-84f9-000d7c112b21',8111},
+]
 
 # Restrict to a particular path.
-
-class RemoteObject:    
-    def return10(self):
-        return 10
 
 class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 	rpc_paths = ('/RPC2',)
@@ -258,7 +273,7 @@ def validate_data(fileRecords):
 			return -1	
 
 
-#Verifies authentication
+#Verifies authentication and returns remaining parameters specified in structure
 def xml_RequestHandler(msg):
 	username = ""
 	password = ""
@@ -285,6 +300,75 @@ def find_paramin_conference(param):
 		return conferenceParameters[param]
 	else:
 		return -1
+
+#Create conference record based on create_recordby_conferenceName
+def create_recordby_conferenceName(msg):
+	maxAttempts = 50
+	attempts = 0
+	validnewRecord = False
+
+	print msg
+	params = copy.deepcopy(msg)
+	conferenceName = ''
+	# Verify authentication and then collect other parameters
+	for element in params:
+		if element == 'conferenceName':
+			conferenceName = params.get('conferenceName')		
+		
+	# 	Verify conferenceGUID status
+	logging.info("create_recordby_conferenceName: " + conferenceName)
+	#   Add '' to conferenceGUID in case is not coming like that
+	if conferenceName.find("'")==-1:
+		conferenceName = "'" + conferenceName + "'"
+
+	if len(conferenceName)>80 and not isinstance(conferenceName, str):
+  		return -1
+
+  	logging.info("Creating new conference...")
+	conferenceID   = generate_conferenceID()
+	conferenceGUID = generate_conferenceGUID()
+	numericID	   = generate_numericID()
+	logging.info(conferenceID)
+	logging.info(conferenceGUID)
+	logging.info(numericID)
+
+	if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
+  		return -1
+
+  	while(not validnewRecord and attempts<maxAttempts):
+	  	if conferenceID > 10000 or numericID > 10000:
+			return -1
+			break
+  		resultValidation = validate_newRecord(conferenceID,conferenceGUID,numericID)
+		if resultValidation == -1:
+			validnewRecord = False
+			return -1
+		elif resultValidation == -2:
+			conferenceID   = generate_conferenceID()
+			attempts += 1
+		elif resultValidation == -3:	
+			numericID	   = generate_numericID()
+			attempts += 1
+		else:
+		   validnewRecord = True
+		   break
+
+	if attempts>=maxAttempts:
+		return -1
+
+	try:
+		with open(configurationFile,"a") as config_file:
+			try:
+				newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0"
+				config_file.write(newRecord + "\n")
+				xmlResponse = conferenceGUID
+				systemConfigurationDb.append({conferenceID,conferenceGUID,numericID})
+				return xmlResponse
+			finally:
+				config_file.close();	
+	except IOError: 
+		pass
+
 
 #Find conference record based on conferenceGUID
 def find_recordby_conferenceGUID(msg):
@@ -319,9 +403,36 @@ def find_recordby_conferenceGUID(msg):
 						paramNumber += 1									
 	return -1	
 
+# Generate random conference ID
+def generate_conferenceGUID():
+	return random_string(8) + "-" + random_string(4) + "-" + random_string(4) + "-" + random_string(4) + "-" +  random_string(12)
+
+# Generate random conferenceID
+def generate_conferenceID():
+	return randrange(1000,9999)
+# Generate random numeric ID
+def generate_numericID():
+	return randrange(1000,9999)
+
+def validate_newRecord(conferenceID,conferenceGUID,numericID):
+	for element in systemConfigurationDb:
+		for item in element:
+			if conferenceGUID == item:
+				return -1
+			if conferenceID == item:
+				return -2
+			if numericID == item:
+				return -3
+	return 0
+
+
+# Generate random String
+def random_string(length):
+    chars = set(string.ascii_lowercase + string.digits)
+    char_gen = (c for c in imap(urandom, repeat(1)) if c in chars)
+    return ''.join(islice(char_gen, None, length))
 
 # Log info
-
 def logInfo(msg):
 	logging.info(msg)
 
@@ -415,7 +526,21 @@ def ping_function(msg):
 	 return 'INVALID MESSAGE: ' + msg
 
 def conference_create(msg):
-	return msg
+	logInfo("conference_create() API conference.create")
+	params = xml_RequestHandler(msg)
+	if (params == 34):
+		return fault_code(systemErrors[34],34)
+	elif(params == 101):
+		return fault_code(systemErrors[101],101)
+	else:
+	  	conferenceGUID = create_recordby_conferenceName(params)
+	  	if (conferenceGUID!=-1):
+	  		print "conference_create() API conference.create conferenceGUID:" + conferenceGUID
+	  		logInfo(conferenceGUID)
+	  		xmlResponse = {'conferenceGUID' :conferenceGUID}
+			return xmlResponse
+	  	else:
+	  		return fault_code(systemErrors[4],4)
 
 def conference_delete(msg):
 	return msg
@@ -426,9 +551,9 @@ def conference_enumerate(msg):
 	#					activeFilter boolean
 	#	conferenceName,conferenceID,conferenceGUID,active,persistent,locked,numericID,registerWithGatekeeper,registerWithSIPRegistrar,h239ContributionEnabled,pin
 	logInfo("conference_enumerate() API conference.enumerate")
-	response = {'conferenceName' :'AT&T TelePresence Solution connection test','conferenceID':45966,'conferenceGUID':'6b30aed0-be06-11e2-af9d-000d7c112b10','active':True,'persistent':False,'locked':False,
+	xmlResponse = {'conferenceName' :'AT&T TelePresence Solution connection test','conferenceID':45966,'conferenceGUID':'6b30aed0-be06-11e2-af9d-000d7c112b10','active':True,'persistent':False,'locked':False,
 	'numericID':'8100','registerWithGatekeeper':False,'registerWithSIPRegistrar':False,'h239ContributionEnabled':False,'pin':''}
-	return response
+	return xmlResponse
 
 def conference_invite(msg):
 	return msg
@@ -447,6 +572,7 @@ def conference_set(msg):
 
 def conference_status(msg):
 	# 	Verify conferenceGUID status
+	#	Todo re-readFile for new conferences added
 	logInfo("conference_status() API conference.status ")
 	params = xml_RequestHandler(msg)
 	if (params == 34):
@@ -480,7 +606,7 @@ class Methods:
 # Create server
 server = SimpleXMLRPCServer((hostname, port),requestHandler=XmlRequestHandler,logRequests=True)
 server.register_function(ping_function, 'ping')
-server.register_function(conference_create, 'cconference.create')
+server.register_function(conference_create, 'conference.create')
 server.register_function(conference_delete, 'conference.delete')
 server.register_function(conference_enumerate, 'conference.enumerate')
 server.register_function(conference_invite, 'conference.invite')
@@ -490,11 +616,10 @@ server.register_function(conference_sendwarning, 'conference.sendwarning')
 server.register_function(conference_set, 'conference.set')
 server.register_function(conference_status, 'conference.status')
 server.register_function(conference_uninvite, 'conference.uninvite')
-server.register_instance(RemoteObject())
 server.register_instance(Methods())
 
+# Main function
 def main():
-
 	logging.basicConfig(filename='tpsServer.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')	
 	logging.info("-----------------------Initializing server------------------------")
 	print "-----------------------Initializing server------------------------"

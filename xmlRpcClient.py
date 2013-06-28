@@ -22,8 +22,29 @@ def ping(msg):
 def show_version():
   print xmlRpcClient.show_version()
 
-def conference_create():
-  print xmlRpcClient.conference.create()  
+def conference_create(conferenceName):
+    # Verify conferenceName syntax
+  '''if len(conferenceGUID)>80 and not isinstance(conferenceName, str):
+    print "Invalid conferenceGUID value"
+    return -1
+  '''
+  if len(conferenceName)>80 and not isinstance(conferenceName, str):
+      return
+
+  parameters = {'conferenceName' :conferenceName,'authenticationUser':username,'authenticationPassword':password}
+  params = tuple([parameters])
+  xmlrpccall = xmlrpclib.dumps(params,'conference.create',encoding='UTF-8')
+  response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100, 
+                             stream = False, )
+  if response.status_code == 200:
+    result = xmlrpclib.loads( response.content, )[ 0 ]
+    print result
+  else:
+    print '(conference.create) Error'
+    return -1 
 
 def conference_enumerate():
   parameters = {'activeFilter' :False,'authenticationUser':username,'authenticationPassword':password}
@@ -72,9 +93,9 @@ def list_methods():
 
 try:
     show_version()
-    conference_create()
+    conference_create("AT&T TelePresence")
     conference_enumerate()
-    conference_status("8ca0c690-dd82-11e2-84f9-000d7c112b19")
+    conference_status("97xux67h-7o3w-lexb-d8lu-opifybc7f3wk")
 except Exception as err:
     print("A fault occurred!")
     print "%s" % err
