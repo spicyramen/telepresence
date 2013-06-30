@@ -294,6 +294,10 @@ def xml_RequestHandler(msg):
 	else:
 		return 34			
 
+#Read file and update systemConfigurationDb
+def update_cache():
+	print "update_cache() Updating cache...."
+
 #Find param X in conference record
 def find_paramin_conference(param):
 	if param >= 0 and param < len(conferenceParameters):
@@ -306,6 +310,7 @@ def create_recordby_conferenceName(msg):
 	maxAttempts = 50
 	attempts = 0
 	validnewRecord = False
+	xmlResponse = []
 
 	print msg
 	params = copy.deepcopy(msg)
@@ -316,7 +321,7 @@ def create_recordby_conferenceName(msg):
 			conferenceName = params.get('conferenceName')		
 		
 	# 	Verify conferenceGUID status
-	logging.info("create_recordby_conferenceName: " + conferenceName)
+	logging.info("create_recordby_conferenceName(): " + conferenceName)
 	#   Add '' to conferenceGUID in case is not coming like that
 	if conferenceName.find("'")==-1:
 		conferenceName = "'" + conferenceName + "'"
@@ -324,13 +329,13 @@ def create_recordby_conferenceName(msg):
 	if len(conferenceName)>80 and not isinstance(conferenceName, str):
   		return -1
 
-  	logging.info("Creating new conference...")
+  	logging.info("create_recordby_conferenceName() Creating new conference...")
 	conferenceID   = generate_conferenceID()
 	conferenceGUID = generate_conferenceGUID()
 	numericID	   = generate_numericID()
-	logging.info(conferenceID)
-	logging.info(conferenceGUID)
-	logging.info(numericID)
+	logging.info("create_recordby_conferenceName() New conferenceID: " + str(conferenceID))
+	logging.info("create_recordby_conferenceName() New conferenceGUID: " + str(conferenceGUID))
+	logging.info("create_recordby_conferenceName() New numericID: " + str(numericID))
 
 	if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
   		return -1
@@ -361,7 +366,8 @@ def create_recordby_conferenceName(msg):
 			try:
 				newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0"
 				config_file.write(newRecord + "\n")
-				xmlResponse = conferenceGUID
+				xmlResponse.append(conferenceGUID)
+				xmlResponse.append(numericID)
 				systemConfigurationDb.append({conferenceID,conferenceGUID,numericID})
 				return xmlResponse
 			finally:
@@ -528,19 +534,21 @@ def ping_function(msg):
 def conference_create(msg):
 	logInfo("conference_create() API conference.create")
 	params = xml_RequestHandler(msg)
+	xmlResponse = []
+
 	if (params == 34):
 		return fault_code(systemErrors[34],34)
 	elif(params == 101):
 		return fault_code(systemErrors[101],101)
 	else:
-	  	conferenceGUID = create_recordby_conferenceName(params)
-	  	if (conferenceGUID!=-1):
-	  		print "conference_create() API conference.create conferenceGUID:" + conferenceGUID
-	  		logInfo(conferenceGUID)
-	  		xmlResponse = {'conferenceGUID' :conferenceGUID}
+	  	xmlResponse = create_recordby_conferenceName(params)
+	  	if (xmlResponse !=-1 and len(xmlResponse) >= 2):
+	  		print "conference_create() API conference.create conferenceGUID:" + xmlResponse[0]
+	  		logInfo(xmlResponse)
+	  		xmlResponse = {'conferenceGUID' :xmlResponse[0],'numericID':xmlResponse[1]}
 			return xmlResponse
 	  	else:
-	  		return fault_code(systemErrors[4],4)
+	  		return fault_code(systemErrors[201],201)
 
 def conference_delete(msg):
 	return msg
