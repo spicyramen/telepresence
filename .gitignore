@@ -1,0 +1,11 @@
+# Can ignore specific files
+.DS_Store
+cgAutoCast.py
+randomGUI.py
+
+# Use wildcards as well
+*~
+*.log
+
+# Can also ignore all directories and files in a directory.
+ 
