@@ -94,8 +94,8 @@ def list_methods():
 try:
     show_version()
     conference_create("AT&T TelePresence")
-    conference_enumerate()
-    conference_status("97xux67h-7o3w-lexb-d8lu-opifybc7f3wk")
+    #conference_enumerate()
+    conference_status("u3c7vm2r-osam-rxdl-oydf-h4xmbbzwjtjx")
 except Exception as err:
     print("A fault occurred!")
     print "%s" % err

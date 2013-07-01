@@ -10,10 +10,12 @@ from os import urandom
 from random import randrange
 from itertools import islice, imap, repeat
 from types import *
+import time
 import string
 import xmlrpclib
 import csv
 import threading
+import thread
 import logging
 import copy
 
@@ -46,7 +48,8 @@ configParameters = [
 	'participantList',
 	'recording',
 	'registerWithSipRegistrar',
-	'h239ContributionID']
+	'h239ContributionID',
+	'conferenceName',]
 
 conferenceParameters = {
 	0: 'portsContentFree',
@@ -69,7 +72,8 @@ conferenceParameters = {
 	17: 'participantList',
 	18: 'recording',
 	19: 'registerWithSipRegistrar',
-	20: 'h239ContributionID'}
+	20: 'h239ContributionID',
+	21: 'conferenceName'}
 
 systemErrors = {
 	1: 'Method not supported',
@@ -119,28 +123,20 @@ dataType =  [
     BooleanType, 	# 18 - recording
     BooleanType, 	# 19 - registerWithSipRegiStringTypear
     IntType,  		# 20 - h239ContributionID
+    StringType,		# 21 - conferenceName
 ]
 
-#Stores information from XML file
-#conferenceID,conferenceGUID,numericID
 systemConfigurationDb = [
-{1000,'8ca0c690-dd82-11e2-84f9-000d7c112b10',8100},
-{1001,'8ca0c690-dd82-11e2-84f9-000d7c112b11',8101},
-{1002,'8ca0c690-dd82-11e2-84f9-000d7c112b12',8102},
-{1003,'8ca0c690-dd82-11e2-84f9-000d7c112b13',8103},
-{1004,'8ca0c690-dd82-11e2-84f9-000d7c112b14',8104},
-{1005,'8ca0c690-dd82-11e2-84f9-000d7c112b15',8105},
-{1006,'8ca0c690-dd82-11e2-84f9-000d7c112b16',8106},
-{1007,'8ca0c690-dd82-11e2-84f9-000d7c112b17',8107},
-{1008,'8ca0c690-dd82-11e2-84f9-000d7c112b18',8108},
-{1009,'8ca0c690-dd82-11e2-84f9-000d7c112b19',8109},
-{1010,'8ca0c690-dd82-11e2-84f9-000d7c112b20',8110},
-{1011,'8ca0c690-dd82-11e2-84f9-000d7c112b21',8111},
 ]
 
-# Restrict to a particular path.
+FILECONFIGURATION_LOCK = threading.Lock()
+
+###########################################################################################
+# Handle XMLRequests and client login
+###########################################################################################
 
 class XmlRequestHandler(SimpleXMLRPCRequestHandler):
+	# Restrict to a particular path.
 	rpc_paths = ('/RPC2',)
 	def do_POST(self):
 		clientIP, port = self.client_address
@@ -155,6 +151,7 @@ class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 			# internal error, report as HTTP server error
 			self.send_response(500)
 			self.end_headers()
+			loggin.error('Internal error')
 		else:
 			# got a valid XML RPC response
 			self.send_response(200)
@@ -166,19 +163,54 @@ class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 			self.wfile.flush()
 			self.connection.shutdown(1)
 
+###########################################################################################
+# Handle file reads and multithreading
+###########################################################################################
+
+class ReadWriteFileThread(threading.Thread):
+	def __init__(self, threadID, FileName,Operation):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.FileName = FileName
+        self.Operation = Operation
+    def run(self):
+            FILECONFIGURATION_LOCK.acquire()
+            try:
+				with open(configurationFile,"r") as config_file:
+					try:
+						fileRecords = csv.reader(config_file, delimiter=',',skipinitialspace=True)
+						allRecords = [record for record in fileRecords]
+					finally:
+						config_file.close();
+						if validateData(allRecords) == -1:
+							return -2		
+			except IOError: 
+				pass       
+            FILECONFIGURATION_LOCK.release()
+  
 
 ###########################################################################################
 # System configuration
 ###########################################################################################
 
 def _init_():
-	if read_configuration() == -1:
-		print "Error invalid configuration"
-		logging.error("Error invalid configuration")
-		print "Program exiting...."
-		logging.error("Program exiting....")	
-		raise SystemExit
 
+	init = readConfigurationFile()
+	if init == -1:
+		print "Error invalid configuration"
+		logging.error("_init_() Error invalid configuration")
+		print "Program exiting...."
+		logging.error("_init_() Program exiting....")	
+		raise SystemExit
+	elif init == -2:
+		print "Error invalid records detected"
+		logging.error("_init_() Error invalid records detected")
+		print "Program exiting...."
+		logging.error("_init_() Program exiting....")	
+		raise SystemExit
+	else:
+		return	
+	
 # Run the server's main loop
 def startXmlRpc():
 
@@ -186,8 +218,8 @@ def startXmlRpc():
 	print "Cisco TelePresence Server 8710 Emulator started...."
 	logging.info("Hostname: " + hostname +  " Port: " + str(port))
 	print "Hostname: " + hostname +  " Port: " + str(port)
-	logging.info("Version:  " + version)
-	print "Version:  " + version
+	logging.info("API Version:  " + version)
+	print "API Version:  " + version
 	try:		
 		logging.info("XML-RPC Server initialized...")
 		threading.Thread(target=server.serve_forever()).start()
@@ -197,12 +229,13 @@ def startXmlRpc():
 	except Exception as instance:
 		print type(inst)
 		print inst.args
-		logging.error("Exception: " + str(instance))
+		logging.error("startXmlRpc() Exception: " + str(instance))
+		raise SystemExit
 
 
 # Verify configuration file
-def read_configuration():
-	logging.info("Reading system configuration...")
+def readConfigurationFile():
+	logging.info("Reading system configuration file: " + configurationFile)
 	try:
 		with open(configurationFile,"r") as config_file:
 			try:
@@ -210,25 +243,36 @@ def read_configuration():
 				allRecords = [record for record in fileRecords]
 			finally:
 				config_file.close();
-				if validate_config(allRecords) == -1:
+				if validateConfiguration(allRecords) == -1:
 					return -1
-				if validate_data(allRecords) == -1:
-					return -1		
+				if validateData(allRecords) == -1:
+					return -2		
 	except IOError: 
 		pass
 
+
+def updateSystemConfiguration(conferenceID,conferenceGUID,numericID):
+	#Stores information from XML file
+	#conferenceID,conferenceGUID,numericID
+	if castRecordElement(conferenceID) == dataType[6] and castRecordElement(conferenceGUID) == dataType[10] and castRecordElement(numericID) == dataType[16]: 
+		systemConfigurationDb.append({int(conferenceID),conferenceGUID,int(numericID)})
+		logging.info("updateSystemConfiguration() Valid record " +  conferenceID + " " + conferenceGUID + " "  + numericID)
+		return True
+	else:
+		logging.error("updateSystemConfiguration() Invalid record " +  conferenceID + " " + conferenceGUID + " "  + numericID)
+		return False  
+
 # Verify configuration parameters in file
-def validate_config(fileparams):
+def validateConfiguration(fileparams):
 	for param in fileparams[0]:
 		if param in configParameters:
-			logging.info('validate_config() Valid param: ' + param)
+			logging.info('validateConfiguration() Valid parameter: ' + param)
 		else:
-			logging.info('validate_config() Invalid param: ' + param)
+			logging.info('validateConfiguration() Invalid parameter: ' + param)
 			return -1
 
 #Verify password is correct
-def authentication(username,password):
-
+def authenticationModule(username,password):
 	if len(username)>128 or len(password)>128:
 		return False
 	if username == systemUserName and password == systemPassWord:
@@ -237,17 +281,17 @@ def authentication(username,password):
 		return False
 
 # Return number of lines in file
-def file_lines(fname):
+def readFileLines(fname):
     with open(fname) as f:
         for i, l in enumerate(f):
             pass
     return i + 1
 
 # Verify records in file
-def validate_data(fileRecords):
+def validateData(fileRecords):
 	logging.info("Validating system configuration data...")
 	#file_lines(configurationFile)
-	logging.info("validate_data() Processing " + str(file_lines(configurationFile) -1 ) + " record(s)...")
+	logging.info("validateData() Processing " + str(readFileLines(configurationFile) -1 ) + " record(s)...")
 	# Delete first line
 	del fileRecords[0]
 	# Copy fileRecords to global systemRecords
@@ -256,20 +300,27 @@ def validate_data(fileRecords):
 	if len(fileRecords)<1:
 		return -1
 	for record in fileRecords:
-		logging.info(record)
+		logging.info("validateData() " + str(record))
 		paramNumber = 0
-		if len(record) == 21:
+		if len(record) == 22:
 			for field in record:
 				if paramNumber == 12 and field == "''": # No PIN					
 					paramNumber += 1			
-				elif castRecordElement(field) == dataType[paramNumber]:					
-					paramNumber += 1    						
+				elif castRecordElement(field) == dataType[paramNumber]:							
+					if paramNumber == 6:
+						conferenceID = field
+					if paramNumber == 10:
+						conferenceGUID = field
+					if paramNumber == 16:
+						numericID = field
+					paramNumber += 1						
     			else:
-    				if paramNumber!=21:
-	    				logging.info("validate_data() Invalid data paramNumber: " + str(paramNumber))
+    				if paramNumber!=22:
+	    				logging.info("validateData() Invalid data paramNumber: " + str(paramNumber))
     					return -1
+    			updateSystemConfiguration(conferenceID,conferenceGUID,numericID)
 		else:
-			logging.warning("Invalid record " + record)
+			logging.warning("validateData() Invalid record: " + record)
 			return -1	
 
 
@@ -286,8 +337,9 @@ def xml_RequestHandler(msg):
 			password = msg.get('authenticationPassword')
 			
 	if username == "" or password == "":
+		logging.error("Invalid credentials")
 		return 101		
-	if (authentication(username,password)):
+	if (authenticationModule(username,password)):
 		del params['authenticationUser']
 		del params['authenticationPassword']
 		return params
@@ -295,18 +347,31 @@ def xml_RequestHandler(msg):
 		return 34			
 
 #Read file and update systemConfigurationDb
-def update_cache():
-	print "update_cache() Updating cache...."
+def updateConfigurationInfo(string,sleeptime,*args):
+	print "updateConfigurationInfo() Updating cache...."
+	logging.info("updateConfigurationInfo: " + configurationFile)
+	try:
+		with open(configurationFile,"r") as config_file:
+			try:
+				fileRecords = csv.reader(config_file, delimiter=',',skipinitialspace=True)
+				allRecords = [record for record in fileRecords]
+			finally:
+				config_file.close();
+				if validateData(allRecords) == -1:
+					return -1		
+	except IOError: 
+		pass
+
 
 #Find param X in conference record
-def find_paramin_conference(param):
+def findParameterInConference(param):
 	if param >= 0 and param < len(conferenceParameters):
 		return conferenceParameters[param]
 	else:
 		return -1
 
 #Create conference record based on create_recordby_conferenceName
-def create_recordby_conferenceName(msg):
+def createConferenceByConferenceName(msg):
 	maxAttempts = 50
 	attempts = 0
 	validnewRecord = False
@@ -320,22 +385,22 @@ def create_recordby_conferenceName(msg):
 		if element == 'conferenceName':
 			conferenceName = params.get('conferenceName')		
 		
-	# 	Verify conferenceGUID status
-	logging.info("create_recordby_conferenceName(): " + conferenceName)
-	#   Add '' to conferenceGUID in case is not coming like that
+	# 	Verify conferenceName status
+	logging.info("createConferenceByConferenceName(): " + conferenceName)
+	#   Add '' to conferenceName in case is not coming like that
 	if conferenceName.find("'")==-1:
 		conferenceName = "'" + conferenceName + "'"
 
 	if len(conferenceName)>80 and not isinstance(conferenceName, str):
   		return -1
 
-  	logging.info("create_recordby_conferenceName() Creating new conference...")
-	conferenceID   = generate_conferenceID()
-	conferenceGUID = generate_conferenceGUID()
-	numericID	   = generate_numericID()
-	logging.info("create_recordby_conferenceName() New conferenceID: " + str(conferenceID))
-	logging.info("create_recordby_conferenceName() New conferenceGUID: " + str(conferenceGUID))
-	logging.info("create_recordby_conferenceName() New numericID: " + str(numericID))
+  	logging.info("createConferenceByConferenceName() Creating new conference...")
+	conferenceID   = generateNewConferenceID()
+	conferenceGUID = generateNewConferenceGUID()
+	numericID	   = generateNewNumericID()
+	logging.info("createConferenceByConferenceName() New conferenceID: " + str(conferenceID))
+	logging.info("createConferenceByConferenceName() New conferenceGUID: " + str(conferenceGUID))
+	logging.info("createConferenceByConferenceName() New numericID: " + str(numericID))
 
 	if len(conferenceGUID)!=36 and not isinstance(conferenceGUID, str):
   		return -1
@@ -344,15 +409,15 @@ def create_recordby_conferenceName(msg):
 	  	if conferenceID > 10000 or numericID > 10000:
 			return -1
 			break
-  		resultValidation = validate_newRecord(conferenceID,conferenceGUID,numericID)
+  		resultValidation = validateNewRecord(conferenceID,conferenceGUID,numericID)
 		if resultValidation == -1:
 			validnewRecord = False
 			return -1
 		elif resultValidation == -2:
-			conferenceID   = generate_conferenceID()
+			conferenceID   = generateNewConferenceID()
 			attempts += 1
 		elif resultValidation == -3:	
-			numericID	   = generate_numericID()
+			numericID	   = generateNewNumericID()
 			attempts += 1
 		else:
 		   validnewRecord = True
@@ -362,9 +427,10 @@ def create_recordby_conferenceName(msg):
 		return -1
 
 	try:
+		# Add new record to Configuration file
 		with open(configurationFile,"a") as config_file:
 			try:
-				newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0"
+				newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName
 				config_file.write(newRecord + "\n")
 				xmlResponse.append(conferenceGUID)
 				xmlResponse.append(numericID)
@@ -377,7 +443,7 @@ def create_recordby_conferenceName(msg):
 
 
 #Find conference record based on conferenceGUID
-def find_recordby_conferenceGUID(msg):
+def findRecordByConferenceGUID(msg):
 	print msg
 	params = copy.deepcopy(msg)
 	conferenceGUID = ''
@@ -387,7 +453,7 @@ def find_recordby_conferenceGUID(msg):
 			conferenceGUID = params.get('conferenceGUID')		
 		
 	# 	Verify conferenceGUID status
-	#   logging.info("find_recordby_conferenceGUID: " + conferenceGUID)
+	#   logging.info("findRecordByConferenceGUID: " + conferenceGUID)
 	#   Add '' to conferenceGUID in case is not coming like that
 	if conferenceGUID.find("'")==-1:
 		conferenceGUID = "'" + conferenceGUID + "'"
@@ -410,17 +476,17 @@ def find_recordby_conferenceGUID(msg):
 	return -1	
 
 # Generate random conference ID
-def generate_conferenceGUID():
+def generateNewConferenceGUID():
 	return random_string(8) + "-" + random_string(4) + "-" + random_string(4) + "-" + random_string(4) + "-" +  random_string(12)
 
 # Generate random conferenceID
-def generate_conferenceID():
+def generateNewConferenceID():
 	return randrange(1000,9999)
 # Generate random numeric ID
-def generate_numericID():
+def generateNewNumericID():
 	return randrange(1000,9999)
 
-def validate_newRecord(conferenceID,conferenceGUID,numericID):
+def validateNewRecord(conferenceID,conferenceGUID,numericID):
 	for element in systemConfigurationDb:
 		for item in element:
 			if conferenceGUID == item:
@@ -431,6 +497,7 @@ def validate_newRecord(conferenceID,conferenceGUID,numericID):
 				return -3
 	return 0
 
+# System UTILS
 
 # Generate random String
 def random_string(length):
@@ -541,7 +608,7 @@ def conference_create(msg):
 	elif(params == 101):
 		return fault_code(systemErrors[101],101)
 	else:
-	  	xmlResponse = create_recordby_conferenceName(params)
+	  	xmlResponse = createConferenceByConferenceName(params)
 	  	if (xmlResponse !=-1 and len(xmlResponse) >= 2):
 	  		print "conference_create() API conference.create conferenceGUID:" + xmlResponse[0]
 	  		logInfo(xmlResponse)
@@ -560,7 +627,7 @@ def conference_enumerate(msg):
 	#	conferenceName,conferenceID,conferenceGUID,active,persistent,locked,numericID,registerWithGatekeeper,registerWithSIPRegistrar,h239ContributionEnabled,pin
 	logInfo("conference_enumerate() API conference.enumerate")
 	xmlResponse = {'conferenceName' :'AT&T TelePresence Solution connection test','conferenceID':45966,'conferenceGUID':'6b30aed0-be06-11e2-af9d-000d7c112b10','active':True,'persistent':False,'locked':False,
-	'numericID':'8100','registerWithGatekeeper':False,'registerWithSIPRegistrar':False,'h239ContributionEnabled':False,'pin':''}
+	'numericID':8100,'registerWithGatekeeper':False,'registerWithSIPRegistrar':False,'h239ContributionEnabled':False,'pin':''}
 	return xmlResponse
 
 def conference_invite(msg):
@@ -588,7 +655,7 @@ def conference_status(msg):
 	elif(params == 101):
 		return fault_code(systemErrors[101],101)
 	else:
-	  	xmlResponse = find_recordby_conferenceGUID(params)
+	  	xmlResponse = findRecordByConferenceGUID(params)
 	  	if (xmlResponse!=-1):
 	  		logInfo(xmlResponse)
 			return xmlResponse
@@ -633,7 +700,7 @@ def main():
 	print "-----------------------Initializing server------------------------"
 	try:
 		_init_()
-		startXmlRpc()		
+		startXmlRpc()
 	except KeyboardInterrupt:
 		logging.info ("Cisco TelePresence Server 8710 Emulator stopping....")
 	except Exception,e:
