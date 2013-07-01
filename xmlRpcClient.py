@@ -95,7 +95,7 @@ try:
     show_version()
     conference_create("AT&T TelePresence")
     #conference_enumerate()
-    conference_status("u3c7vm2r-osam-rxdl-oydf-h4xmbbzwjtjx")
+    conference_status("t5e5hvj5-7e45-8zvc-9svx-8jgxmgu2n4mi")
 except Exception as err:
     print("A fault occurred!")
     print "%s" % err

@@ -129,7 +129,7 @@ dataType =  [
 systemConfigurationDb = [
 ]
 
-FILECONFIGURATION_LOCK = threading.Lock()
+fileLock = threading.Lock()
 
 ###########################################################################################
 # Handle XMLRequests and client login
@@ -167,26 +167,44 @@ class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 # Handle file reads and multithreading
 ###########################################################################################
 
+#threadWrite = ReadWriteFileThread("Thread-Write",2,systemFile,"a",newRecord)
+
 class ReadWriteFileThread(threading.Thread):
-	def __init__(self, threadID, FileName,Operation):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.FileName = FileName
-        self.Operation = Operation
-    def run(self):
-            FILECONFIGURATION_LOCK.acquire()
-            try:
-				with open(configurationFile,"r") as config_file:
+	def __init__(self, name, threadID, FileName,Operation,Record):
+		threading.Thread.__init__(self)
+		self.name = name
+		self.threadID = threadID
+		self.FileName = FileName
+		self.Operation = Operation
+		self.Record = Record
+	def run(self):
+		print "Starting " + self.name
+		fileLock.acquire()
+		if(self.Operation == "r"):
+			try:
+				with open(configurationFile,self.Operation) as config_file:
 					try:
 						fileRecords = csv.reader(config_file, delimiter=',',skipinitialspace=True)
 						allRecords = [record for record in fileRecords]
 					finally:
 						config_file.close();
-						if validateData(allRecords) == -1:
-							return -2		
+						if updateData(allRecords,False) == -1:
+							return -1
 			except IOError: 
-				pass       
-            FILECONFIGURATION_LOCK.release()
+				pass
+		elif(self.Operation == "a"):
+			try:
+				with open(configurationFile,self.Operation) as config_file:
+					try:
+						config_file.write(self.Record + "\n")
+					finally:
+						config_file.close();
+			except IOError: 
+				pass
+		else:
+			print "Invalid operation: " + str(self.Operation)
+
+		fileLock.release()
   
 
 ###########################################################################################
@@ -289,6 +307,7 @@ def readFileLines(fname):
 
 # Verify records in file
 def validateData(fileRecords):
+
 	logging.info("Validating system configuration data...")
 	#file_lines(configurationFile)
 	logging.info("validateData() Processing " + str(readFileLines(configurationFile) -1 ) + " record(s)...")
@@ -323,6 +342,43 @@ def validateData(fileRecords):
 			logging.warning("validateData() Invalid record: " + record)
 			return -1	
 
+# Verify records in file
+def updateData(fileRecords,check):
+
+	#file_lines(configurationFile)
+	logging.info("updateData() Processing " + str(readFileLines(configurationFile) -1 ) + " record(s)...")
+	# Delete first line which includes header
+	del fileRecords[0]
+	# Copy fileRecords to global systemRecords
+	global systemRecords
+	systemRecords = copy.copy(fileRecords)
+	if len(fileRecords)<1:
+		return -1
+	if check:	
+		for record in fileRecords:
+			logging.info("updateData() " + str(record))
+			paramNumber = 0
+			if len(record) == 22:
+				for field in record:
+					if paramNumber == 12 and field == "''": # No PIN					
+						paramNumber += 1			
+					elif castRecordElement(field) == dataType[paramNumber]:							
+						if paramNumber == 6:
+							conferenceID = field
+						if paramNumber == 10:
+							conferenceGUID = field
+						if paramNumber == 16:
+							numericID = field
+						paramNumber += 1						
+    				else:
+    					if paramNumber!=22:
+	    					logging.info("updateData() Invalid data paramNumber: " + str(paramNumber))
+	    					return -1
+    				updateSystemConfiguration(conferenceID,conferenceGUID,numericID)
+			else:
+				logging.warning("updateData() Invalid record: " + record)
+				return -1	
+
 
 #Verifies authentication and returns remaining parameters specified in structure
 def xml_RequestHandler(msg):
@@ -347,20 +403,13 @@ def xml_RequestHandler(msg):
 		return 34			
 
 #Read file and update systemConfigurationDb
-def updateConfigurationInfo(string,sleeptime,*args):
+def updateConfigurationInfo():
 	print "updateConfigurationInfo() Updating cache...."
 	logging.info("updateConfigurationInfo: " + configurationFile)
-	try:
-		with open(configurationFile,"r") as config_file:
-			try:
-				fileRecords = csv.reader(config_file, delimiter=',',skipinitialspace=True)
-				allRecords = [record for record in fileRecords]
-			finally:
-				config_file.close();
-				if validateData(allRecords) == -1:
-					return -1		
-	except IOError: 
-		pass
+	threadRead = ReadWriteFileThread("Thread-Read",1,systemFile,"r","")
+	threadRead.start()
+	threadRead.join()
+
 
 
 #Find param X in conference record
@@ -426,20 +475,14 @@ def createConferenceByConferenceName(msg):
 	if attempts>=maxAttempts:
 		return -1
 
-	try:
-		# Add new record to Configuration file
-		with open(configurationFile,"a") as config_file:
-			try:
-				newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName
-				config_file.write(newRecord + "\n")
-				xmlResponse.append(conferenceGUID)
-				xmlResponse.append(numericID)
-				systemConfigurationDb.append({conferenceID,conferenceGUID,numericID})
-				return xmlResponse
-			finally:
-				config_file.close();	
-	except IOError: 
-		pass
+	newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName
+	threadWrite = ReadWriteFileThread("Thread-Write",2,systemFile,"a",newRecord)
+	threadWrite.start()
+	threadWrite.join()
+	xmlResponse.append(conferenceGUID)
+	xmlResponse.append(numericID)
+	systemConfigurationDb.append({conferenceID,conferenceGUID,numericID})
+	return xmlResponse
 
 
 #Find conference record based on conferenceGUID
@@ -447,6 +490,8 @@ def findRecordByConferenceGUID(msg):
 	print msg
 	params = copy.deepcopy(msg)
 	conferenceGUID = ''
+	updateConfigurationInfo()
+
 	# Verify authentication and then collect other parameters
 	for element in params:
 		if element == 'conferenceGUID':
@@ -469,7 +514,7 @@ def findRecordByConferenceGUID(msg):
 				for field in record:
 					if paramNumber == 10:
 						if field == conferenceGUID:
-							print record
+							logging.info("findRecordByConferenceGUID() " + conferenceGUID)
 							return record
 					else:
 						paramNumber += 1									
@@ -558,7 +603,6 @@ def listify(s):
 def estimateTypedValue(var):
     '''guesses the str representation of the variable's type'''
 
-
     #dont need to guess type if it is already un-str typed (not coming from CLI)
     if type(var) != type('aString'):
         return var 
@@ -610,7 +654,7 @@ def conference_create(msg):
 	else:
 	  	xmlResponse = createConferenceByConferenceName(params)
 	  	if (xmlResponse !=-1 and len(xmlResponse) >= 2):
-	  		print "conference_create() API conference.create conferenceGUID:" + xmlResponse[0]
+	  		print "conference_create() API conference.create New conferenceGUID: " + xmlResponse[0]
 	  		logInfo(xmlResponse)
 	  		xmlResponse = {'conferenceGUID' :xmlResponse[0],'numericID':xmlResponse[1]}
 			return xmlResponse
