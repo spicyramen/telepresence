@@ -1,12 +1,13 @@
-conferenceName,portsContentFree,locked,oneTableMode,portsAudioFree,roundTableEnable,videoPortLimit,conferenceID,persistent,portsVideoFree,audioPortLimit,conferenceGUID,audioPortLimitSet,pin,active,videoPortLimitSet,registerWithGatekeeper,numericID,participantList,recording,registerWithSipRegistrar,h239ContributionID,conferenceName
-24,False,0,10,False,0,1000,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b10',False,123,True,False,True,8100,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1001,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b11',False,'',True,False,True,8101,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1002,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b12',False,'',True,False,True,8102,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1003,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b13',False,123,True,False,True,8103,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1004,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b14',False,'',True,False,True,8104,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1005,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b15',False,'',True,False,True,8105,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1006,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b16',False,123,True,False,True,8106,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1007,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b17',False,'',True,False,True,8107,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1008,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b18',False,'',True,False,True,8108,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1009,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b19',False,123,True,False,True,8109,[],False,True,0,'ATT TelePresence Solution'
-24,False,0,10,False,0,1010,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b20',False,'',True,False,True,8110,[],False,True,0,'ATT TelePresence Solution'
+conferenceName,portsContentFree,locked,oneTableMode,portsAudioFree,roundTableEnable,videoPortLimit,conferenceID,persistent,portsVideoFree,audioPortLimit,conferenceGUID,audioPortLimitSet,pin,active,videoPortLimitSet,registerWithGatekeeper,numericID,participantList,recording,registerWithSipRegistrar,h239ContributionID,conferenceName,tsURI,useLobbyScreen,lobbyMessage,useWarning,lockDuration,duration
+24,False,0,10,False,0,1000,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b10',False,123,True,False,True,8100,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1001,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b11',False,'',True,False,True,8101,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1002,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b12',False,'',True,False,True,8102,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1003,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b13',False,123,True,False,True,8103,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1004,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b14',False,'',True,False,True,8104,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1005,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b15',False,'',True,False,True,8105,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1006,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b16',False,123,True,False,True,8106,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1007,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b17',False,'',True,False,True,8107,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1008,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b18',False,'',True,False,True,8108,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1009,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b19',False,123,True,False,True,8109,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,0
+24,False,0,10,False,0,1010,True,24,0,'8ca0c690-dd82-11e2-84f9-000d7c112b20',False,'',True,False,True,8110,[],False,True,0,'ATT TelePresence Solution','',False,'',False,0,024,False,0,10,False,0,4908,True,24,0,'5mv4udvc-v8xz-1wmh-4a8j-49xy24n9bql5',False,'',True,False,True,6592,[],False,True,0,'AT&T TelePresence','',False,'',False,'','',''
+24,False,0,10,False,0,7522,True,24,0,'3nz5r41w-agci-p6xe-w725-rs68tut9g4jk',False,'',True,False,True,3096,[],False,True,0,'AT&T TelePresence','',False,'',False,'','',''

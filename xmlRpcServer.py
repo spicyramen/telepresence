@@ -49,7 +49,13 @@ configParameters = [
 	'recording',
 	'registerWithSipRegistrar',
 	'h239ContributionID',
-	'conferenceName',]
+	'conferenceName',
+	'tsURI',
+	'useLobbyScreen',
+	'lobbyMessage',
+	'useWarning',
+	'lockDuration',
+	'duration']
 
 conferenceParameters = {
 	0: 'portsContentFree',
@@ -73,7 +79,16 @@ conferenceParameters = {
 	18: 'recording',
 	19: 'registerWithSipRegistrar',
 	20: 'h239ContributionID',
-	21: 'conferenceName'}
+	21: 'conferenceName',
+	22: 'tsURI',
+	23: 'useLobbyScreen',
+	24: 'lobbyMessage',
+	25: 'useWarning',
+	26: 'lockDuration',
+	27: 'duration'
+	}
+
+
 
 systemErrors = {
 	1: 'Method not supported',
@@ -124,7 +139,14 @@ dataType =  [
     BooleanType, 	# 19 - registerWithSipRegiStringTypear
     IntType,  		# 20 - h239ContributionID
     StringType,		# 21 - conferenceName
+    StringType,		# 22 - tsURI
+    BooleanType,	# 23 - useLobbyScreen
+    StringType,		# 24 - lobbyMessage
+    BooleanType,	# 25 - useWarning
+    IntType,		# 26 - lockDuration
+    IntType,		# 27 - duration
 ]
+
 
 systemConfigurationDb = [
 ]
@@ -170,6 +192,7 @@ class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 #threadWrite = ReadWriteFileThread("Thread-Write",2,systemFile,"a",newRecord)
 
 class ReadWriteFileThread(threading.Thread):
+
 	def __init__(self, name, threadID, FileName,Operation,Record):
 		threading.Thread.__init__(self)
 		self.name = name
@@ -321,7 +344,7 @@ def validateData(fileRecords):
 	for record in fileRecords:
 		logging.info("validateData() " + str(record))
 		paramNumber = 0
-		if len(record) == 22:
+		if len(record) == 28:
 			for field in record:
 				if paramNumber == 12 and field == "''": # No PIN					
 					paramNumber += 1			
@@ -334,7 +357,7 @@ def validateData(fileRecords):
 						numericID = field
 					paramNumber += 1						
     			else:
-    				if paramNumber!=22:
+    				if paramNumber!=28:
 	    				logging.info("validateData() Invalid data paramNumber: " + str(paramNumber))
     					return -1
     			updateSystemConfiguration(conferenceID,conferenceGUID,numericID)
@@ -358,7 +381,7 @@ def updateData(fileRecords,check):
 		for record in fileRecords:
 			logging.info("updateData() " + str(record))
 			paramNumber = 0
-			if len(record) == 22:
+			if len(record) == 28:
 				for field in record:
 					if paramNumber == 12 and field == "''": # No PIN					
 						paramNumber += 1			
@@ -371,7 +394,7 @@ def updateData(fileRecords,check):
 							numericID = field
 						paramNumber += 1						
     				else:
-    					if paramNumber!=22:
+    					if paramNumber!=28:
 	    					logging.info("updateData() Invalid data paramNumber: " + str(paramNumber))
 	    					return -1
     				updateSystemConfiguration(conferenceID,conferenceGUID,numericID)
@@ -475,7 +498,7 @@ def createConferenceByConferenceName(msg):
 	if attempts>=maxAttempts:
 		return -1
 
-	newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName
+	newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName + ",'',False,'',False,'','',''"
 	threadWrite = ReadWriteFileThread("Thread-Write",2,systemFile,"a",newRecord)
 	threadWrite.start()
 	threadWrite.join()
