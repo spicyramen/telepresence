@@ -86,9 +86,7 @@ conferenceParameters = {
 	25: 'useWarning',
 	26: 'lockDuration',
 	27: 'duration'
-	}
-
-
+}
 
 systemErrors = {
 	1: 'Method not supported',
@@ -498,7 +496,7 @@ def createConferenceByConferenceName(msg):
 	if attempts>=maxAttempts:
 		return -1
 
-	newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName + ",'',False,'',False,'','',''"
+	newRecord = "24,False,0,10,False,0," + str(conferenceID) + ",True,24,0," + "'" + conferenceGUID + "'" +  ",False,'',True,False,True," + str(numericID) + ",[],False,True,0," + conferenceName + ",'',False,'',False,0,0"
 	threadWrite = ReadWriteFileThread("Thread-Write",2,systemFile,"a",newRecord)
 	threadWrite.start()
 	threadWrite.join()
