@@ -8,8 +8,8 @@ import requests
 		Emulates TelePresence Server 8710 API Calls
 '''
 
-hostname = 'localhost'
-port     = '8080'
+hostname = '192.168.182.130'
+port     = '8081'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
 username = "sut"
 password = "1qaz2wsx"
@@ -92,10 +92,11 @@ def list_methods():
   print xmlRpcClient.system.listMethods()
 
 try:
+    ping("REQUEST")
     show_version()
-    conference_create("AT&T TelePresence")
+    #conference_create("AT&T TelePresence")
     #conference_enumerate()
-    conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")
+    #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")
 except Exception as err:
     print("A fault occurred!")
     print "%s" % err

@@ -2,7 +2,7 @@
 @author Gonzalo Gasca Meza
 		AT&T Labs 
 		Date: June 2013
-		Emulates TelePresence Server 8710 Server API
+		Purpose: Emulates TelePresence Server 8710 Server API
 '''
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
@@ -171,7 +171,7 @@ class XmlRequestHandler(SimpleXMLRPCRequestHandler):
 			# internal error, report as HTTP server error
 			self.send_response(500)
 			self.end_headers()
-			loggin.error('Internal error')
+			logging.error('Internal error')
 		else:
 			# got a valid XML RPC response
 			self.send_response(200)
@@ -199,8 +199,9 @@ class ReadWriteFileThread(threading.Thread):
 		self.Operation = Operation
 		self.Record = Record
 	def run(self):
-		print "Starting " + self.name
+		print "Starting " + self.name + " " + str(self.threadID)
 		fileLock.acquire()
+		#Read file
 		if(self.Operation == "r"):
 			try:
 				with open(configurationFile,self.Operation) as config_file:
@@ -213,6 +214,7 @@ class ReadWriteFileThread(threading.Thread):
 							return -1
 			except IOError: 
 				pass
+		#Add record to file
 		elif(self.Operation == "a"):
 			try:
 				with open(configurationFile,self.Operation) as config_file:
@@ -266,8 +268,8 @@ def startXmlRpc():
 		print ""
 		logging.info("Cisco TelePresence Server 8710 Emulator stopping....")
 	except Exception as instance:
-		print type(inst)
-		print inst.args
+		print type(instance)
+		print instance.args
 		logging.error("startXmlRpc() Exception: " + str(instance))
 		raise SystemExit
 
@@ -431,8 +433,6 @@ def updateConfigurationInfo():
 	threadRead.start()
 	threadRead.join()
 
-
-
 #Find param X in conference record
 def findParameterInConference(param):
 	if param >= 0 and param < len(conferenceParameters):
@@ -563,7 +563,14 @@ def validateNewRecord(conferenceID,conferenceGUID,numericID):
 				return -3
 	return 0
 
-# System UTILS
+def createXmlResponse(args):
+	xmlResponse = {'conferenceName' :'AT&T TelePresence Solution connection test','conferenceID':45966,'conferenceGUID':'6b30aed0-be06-11e2-af9d-000d7c112b10','active':True,'persistent':False,'locked':False,
+	'numericID':8100,'registerWithGatekeeper':False,'registerWithSIPRegistrar':False,'h239ContributionEnabled':False,'pin':''}
+	return xmlResponse
+
+###########################################################################################
+# System utilities
+###########################################################################################
 
 # Generate random String
 def random_string(length):
@@ -571,7 +578,7 @@ def random_string(length):
     char_gen = (c for c in imap(urandom, repeat(1)) if c in chars)
     return ''.join(islice(char_gen, None, length))
 
-# Log info
+# Logging info
 def logInfo(msg):
 	logging.info(msg)
 
@@ -654,7 +661,6 @@ def castRecordElement(element):
 ###########################################################################################
 # API Method implementation
 ###########################################################################################
-
 
 def ping_function(msg):
 	logInfo("ping_function() API ping")
