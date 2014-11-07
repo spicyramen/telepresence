@@ -1,7 +1,7 @@
 '''
 @author Gonzalo Gasca Meza
 		AT&T Labs 
-		Date: June 2013
+		Date: November 2014
 		Purpose: Emulates TelePresence Server 8710 Server API
 '''
 from SimpleXMLRPCServer import SimpleXMLRPCServer
@@ -10,23 +10,23 @@ from os import urandom
 from random import randrange
 from itertools import islice, imap, repeat
 from types import *
-import time
-import string
-import xmlrpclib
-import csv
-import threading
-import thread
-import logging
-import copy
+import string,csv,threading,logging,copy,re
+from urlparse import urlparse
 
-hostname = "localhost"
+##########################################################################
+hostname = "110.10.0.161"
 port     = 8080
-version  = '2.3(1.48)'
-configurationFile = 'configuration.xml'
+version  = '4.0(1.57)'
+conferenceConfig = 'conf/conference.conf'
 systemFile = 'system.xml'
 systemUserName = "sut"
 systemPassWord = "1qaz2wsx"
+systemConfigurationFile = 'conf/system.xml'
+systemMode     = -1
+feedBackServerList = {}
+feedbackReceiverIndex = []
 
+#Configuration parameters
 configParameters = [
 	'portsContentFree',
 	'locked',
@@ -57,6 +57,7 @@ configParameters = [
 	'lockDuration',
 	'duration']
 
+#Conference parameters
 conferenceParameters = {
 	0: 'portsContentFree',
 	1: 'locked',
@@ -88,6 +89,7 @@ conferenceParameters = {
 	27: 'duration'
 }
 
+#System Errors
 systemErrors = {
 	1: 'Method not supported',
 	2: 'Duplicate conference name',
@@ -114,6 +116,7 @@ systemErrors = {
 	203:'Too many asynchronous requests'
 }
 
+#Data Type
 dataType =  [
 	IntType,  		# 0  - portsContentFree
     BooleanType, 	# 1  - locked
@@ -150,6 +153,27 @@ systemConfigurationDb = [
 ]
 
 fileLock = threading.Lock()
+
+
+###########################################################################################
+# Handle XMLRequests from each Feedback Configure requests
+###########################################################################################
+
+class feedBackServer():
+    def __init__(self, uri, port, active):
+		self.uri = uri
+		self.port = port
+		self.active = active
+
+    def getPort(self):
+        return self.port
+
+    def setActiveStatus(self,status):
+        self.active = status
+
+class feedBackServerNotifier():
+    def notify(self):
+        logging.info('Notifying feedback Servers')
 
 ###########################################################################################
 # Handle XMLRequests and client login
@@ -204,7 +228,7 @@ class ReadWriteFileThread(threading.Thread):
 		#Read file
 		if(self.Operation == "r"):
 			try:
-				with open(configurationFile,self.Operation) as config_file:
+				with open(conferenceConfig,self.Operation) as config_file:
 					try:
 						fileRecords = csv.reader(config_file, delimiter=',',skipinitialspace=True)
 						allRecords = [record for record in fileRecords]
@@ -217,7 +241,7 @@ class ReadWriteFileThread(threading.Thread):
 		#Add record to file
 		elif(self.Operation == "a"):
 			try:
-				with open(configurationFile,self.Operation) as config_file:
+				with open(conferenceConfig,self.Operation) as config_file:
 					try:
 						config_file.write(self.Record + "\n")
 					finally:
@@ -228,57 +252,83 @@ class ReadWriteFileThread(threading.Thread):
 			print "Invalid operation: " + str(self.Operation)
 
 		fileLock.release()
-  
+
+
+def feedbackReceiverInitialize():
+        global feedbackReceiverIndex
+        feedbackReceiverIndex = range(1,100,1)
+###
+
+def getSysteMode():
+    from xml.dom import minidom
+    doc = minidom.parse(systemConfigurationFile)
+    # doc.getElementsByTagName returns NodeList
+    try:
+        name = doc.getElementsByTagName("system")[0]
+        print(name.firstChild.data)
+        systemModeInFile = doc.getElementsByTagName("mode")[0]
+        if systemModeInFile=="flex":
+            print (systemModeInFile.firstChild.data)
+            return 0
+            # This is flex mode
+        elif systemModeInFile=="local":
+            return 1
+        else:
+            return -1
+    except:
+        pass
+        return -1
+
 
 ###########################################################################################
 # System configuration
 ###########################################################################################
+def initialize():
+    systemMode = getSysteMode()
+    initResult = readConfigurationFile()
 
-def _init_():
-
-	init = readConfigurationFile()
-	if init == -1:
-		print "Error invalid configuration"
-		logging.error("_init_() Error invalid configuration")
-		print "Program exiting...."
-		logging.error("_init_() Program exiting....")	
-		raise SystemExit
-	elif init == -2:
-		print "Error invalid records detected"
-		logging.error("_init_() Error invalid records detected")
-		print "Program exiting...."
-		logging.error("_init_() Program exiting....")	
-		raise SystemExit
-	else:
-		return	
+    if initResult ==-1:
+        print "Error invalid configuration"
+        logging.error("_init_() Error invalid configuration")
+        print "Program exiting...."
+        logging.error("_init_() Program exiting....")
+        raise SystemExit
+    elif initResult == -2:
+        print "Error invalid records detected"
+        logging.error("_init_() Error invalid records detected")
+        print "Program exiting...."
+        logging.error("_init_() Program exiting....")
+        raise SystemExit
+    else:
+		return
 	
 # Run the server's main loop
 def startXmlRpc():
-
-	logging.info("Cisco TelePresence Server 8710 Emulator started....")
-	print "Cisco TelePresence Server 8710 Emulator started...."
-	logging.info("Hostname: " + hostname +  " Port: " + str(port))
-	print "Hostname: " + hostname +  " Port: " + str(port)
-	logging.info("API Version:  " + version)
-	print "API Version:  " + version
-	try:		
+    logging.info("Cisco TelePresence Server 8710 Emulator started....")
+    print "Cisco TelePresence Server 8710 Emulator started...."
+    logging.info("Hostname: " + hostname +  " Port: " + str(port))
+    print "Hostname: " + hostname +  " Port: " + str(port)
+    logging.info("API Version:  " + version)
+    print "API Version:  " + version
+    try:
 		logging.info("XML-RPC Server initialized...")
 		threading.Thread(target=server.serve_forever()).start()
-	except KeyboardInterrupt:
+    except KeyboardInterrupt:
 		print ""
 		logging.info("Cisco TelePresence Server 8710 Emulator stopping....")
-	except Exception as instance:
+    except Exception as instance:
 		print type(instance)
 		print instance.args
 		logging.error("startXmlRpc() Exception: " + str(instance))
 		raise SystemExit
 
 
-# Verify configuration file
+# Read configuration file
+# configuration.xml contains conference information
 def readConfigurationFile():
-	logging.info("Reading system configuration file: " + configurationFile)
+	logging.info("Reading system configuration file: " + conferenceConfig)
 	try:
-		with open(configurationFile,"r") as config_file:
+		with open(conferenceConfig,"r") as config_file:
 			try:
 				fileRecords = csv.reader(config_file, delimiter=',',skipinitialspace=True)
 				allRecords = [record for record in fileRecords]
@@ -330,10 +380,9 @@ def readFileLines(fname):
 
 # Verify records in file
 def validateData(fileRecords):
-
 	logging.info("Validating system configuration data...")
 	#file_lines(configurationFile)
-	logging.info("validateData() Processing " + str(readFileLines(configurationFile) -1 ) + " record(s)...")
+	logging.info("validateData() Processing " + str(readFileLines(conferenceConfig) -1 ) + " record(s)...")
 	# Delete first line
 	del fileRecords[0]
 	# Copy fileRecords to global systemRecords
@@ -369,7 +418,7 @@ def validateData(fileRecords):
 def updateData(fileRecords,check):
 
 	#file_lines(configurationFile)
-	logging.info("updateData() Processing " + str(readFileLines(configurationFile) -1 ) + " record(s)...")
+	logging.info("updateData() Processing " + str(readFileLines(conferenceConfig) -1 ) + " record(s)...")
 	# Delete first line which includes header
 	del fileRecords[0]
 	# Copy fileRecords to global systemRecords
@@ -428,7 +477,7 @@ def xml_RequestHandler(msg):
 #Read file and update systemConfigurationDb
 def updateConfigurationInfo():
 	print "updateConfigurationInfo() Updating cache...."
-	logging.info("updateConfigurationInfo: " + configurationFile)
+	logging.info("updateConfigurationInfo: " + conferenceConfig)
 	threadRead = ReadWriteFileThread("Thread-Read",1,systemFile,"r","")
 	threadRead.start()
 	threadRead.join()
@@ -669,6 +718,7 @@ def ping_function(msg):
 	else:
 	 return 'INVALID MESSAGE: ' + msg
 
+
 def conference_create(msg):
 	logInfo("conference_create() API conference.create")
 	params = xml_RequestHandler(msg)
@@ -742,6 +792,90 @@ def fault_code(string,code):
 	return xmlResponse
 
 
+
+# Flex Mode methods
+def feedbackReceiver_configure(msg):
+    print("feedbackReceiver() API feedbackReceiver.configure")
+    logInfo("feedbackReceiver() API feedbackReceiver.configure")
+    params = xml_RequestHandler(msg)
+    receiverURI = ''
+
+    if (params == 34):
+        logging.error('feedbackReceiver() xml_RequestHandler error')
+        return fault_code(systemErrors[34],34)
+
+    for element in params:
+        if element == 'receiverURI':
+            receiverURI = params.get('receiverURI')
+        if element == 'receiverIndex':
+            receiverIndex = params.get('receiverIndex')
+
+    logging.info('feedbackReceiver() receiverURI: ' + receiverURI)
+    #ReceiverIndex was not in params will be assigned from pool
+    if receiverIndex == -1:
+        receiverIndex = feedbackReceiverIndex[0]
+        logging.info('feedbackReceiver() receiverIndex -1: Generating new value: ' + str(receiverIndex))
+    elif not receiverIndex:
+        receiverIndex = feedbackReceiverIndex[0]
+        logging.info('feedbackReceiver() Generating new value: ' + str(receiverIndex))
+    else:
+        logging.info('feedbackReceiver() receiverIndex: ' + str(receiverIndex))
+
+    if not feedbackReceiverIndex[0]:
+        # Not enough indexes
+        logging.error('feedbackReceiver() not enough indexes')
+        return fault_code(systemErrors[34],34)
+
+    # Get port from URL
+    port = urlparse(receiverURI).port
+
+    # URI and port MUST exist
+    if receiverURI and port:
+        logging.info('feedbackReceiver() Creating feebackReceiver receiverURI: ' + receiverURI)
+        logging.info('feedbackReceiver() Feedback client port: ' +  str(port))
+    else:
+        logging.error('feedbackReceiver() Invalid request')
+        return fault_code(systemErrors[34],34)
+
+    # Create new Feedback Receiver object
+    feedbackServerInstance = feedBackServer(receiverURI,port,True)
+    # Check Object does not exist in FeedBack receiver
+    if not feedBackServerList.has_key(receiverIndex):
+        feedBackServerList[receiverIndex] = feedbackServerInstance
+    else:
+        # TODO allocate an index not in use, do it more nicely
+        return fault_code(systemErrors[6],6)
+
+    xmlResponse = []
+    xmlResponse = {'status' :'operation succesful','receiverIndex':receiverIndex}
+    # Get rid of index as its in use
+    try:
+        del feedbackReceiverIndex[0]
+    except:
+        pass
+
+    return xmlResponse
+
+
+def flex_participant_enumerate(msg):
+	logInfo("flex_participant_enumerate() API flex.participant.enumerate")
+	params = xml_RequestHandler(msg)
+	xmlResponse = []
+
+	if (params == 34):
+		return fault_code(systemErrors[34],34)
+	elif(params == 101):
+		return fault_code(systemErrors[101],101)
+	else:
+	  	xmlResponse = createConferenceByConferenceName(params)
+	  	if (xmlResponse !=-1 and len(xmlResponse) >= 2):
+	  		print "conference_create() API flex.participant.enumerate New conferenceGUID: " + xmlResponse[0]
+	  		logInfo(xmlResponse)
+	  		xmlResponse = {'conferenceGUID' :xmlResponse[0],'numericID':xmlResponse[1]}
+			return xmlResponse
+	  	else:
+	  		return fault_code(systemErrors[201],201)
+
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
 		def show_version(self):
@@ -752,25 +886,30 @@ class Methods:
 # Create server
 server = SimpleXMLRPCServer((hostname, port),requestHandler=XmlRequestHandler,logRequests=True)
 server.register_function(ping_function, 'ping')
-server.register_function(conference_create, 'conference.create')
-server.register_function(conference_delete, 'conference.delete')
-server.register_function(conference_enumerate, 'conference.enumerate')
-server.register_function(conference_invite, 'conference.invite')
-server.register_function(conference_senddtmf, 'conference.senddtmf')
-server.register_function(conference_sendmessage, 'conference.sendmessage')
-server.register_function(conference_sendwarning, 'conference.sendwarning')
-server.register_function(conference_set, 'conference.set')
-server.register_function(conference_status, 'conference.status')
-server.register_function(conference_uninvite, 'conference.uninvite')
+"""if systemMode==0:
+        server.register_function(conference_create, 'conference.create')
+        server.register_function(conference_delete, 'conference.delete')
+        server.register_function(conference_enumerate, 'conference.enumerate')
+        server.register_function(conference_invite, 'conference.invite')
+        server.register_function(conference_senddtmf, 'conference.senddtmf')
+        server.register_function(conference_sendmessage, 'conference.sendmessage')
+        server.register_function(conference_sendwarning, 'conference.sendwarning')
+        server.register_function(conference_set, 'conference.set')
+        server.register_function(conference_status, 'conference.status')
+        server.register_function(conference_uninvite, 'conference.uninvite')"""
+
+server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
+server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
 server.register_instance(Methods())
 
 # Main function
 def main():
-	logging.basicConfig(filename='tpsServer.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')	
+	logging.basicConfig(filename='logs/tps.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 	logging.info("-----------------------Initializing server------------------------")
 	print "-----------------------Initializing server------------------------"
 	try:
-		_init_()
+		initialize()
+		feedbackReceiverInitialize()
 		startXmlRpc()
 	except KeyboardInterrupt:
 		logging.info ("Cisco TelePresence Server 8710 Emulator stopping....")

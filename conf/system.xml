@@ -3,8 +3,10 @@
 <manufacturer>TANDBERG</manufacturer>
 <model>Telepresence Server 8710</model>
 <serial>SM011835</serial>
-<softwareVersion>2.3(1.48)</softwareVersion>
+<softwareVersion>4.0(1.57)</softwareVersion>
 <buildVersion>13.0(1.48)</buildVersion>
+<mode>flex</mode>
+<maxcalls>48</maxcalls>
 <hostName>dt12b7</hostName>
 <ipAddress>172.16.1.10</ipAddress>
 <ipAddressV6>2001:420:40ff:ff0a:20d:7cff:fe10:21c3</ipAddressV6>
@@ -20,7 +22,7 @@
 <sipTrunkDomain/>
 <isMaster>Yes</isMaster>
 <clusterType>unclustered</clusterType>
-<totalVideoPorts>12</totalVideoPorts>
+<totalVideoPorts>48</totalVideoPorts>
 <totalContentPorts>12</totalContentPorts>
 <totalAudioOnlyPorts>10</totalAudioOnlyPorts>
 <uptimeSeconds>230641</uptimeSeconds>
