@@ -163,12 +163,13 @@ conferenceFieldDataType = [
 #Data Type for Participant
 participantFieldDataType = [
     StringType,  # 0  - participantId
-    StringType,  # 1  - conferenceId
-    StringType,  # 2  - accessLevel
-    StringType,  # 3  - displayName
-    StringType,  # 4  - connectionState
-    ListType,    # 5  - calls
-    ListType,    # 6  - addresses
+    BooleanType, # 1
+    StringType,  # 2  - conferenceId
+    StringType,  # 3  - accessLevel
+    StringType,  # 4  - displayName
+    StringType,  # 5  - connectionState
+    ListType,    # 6  - calls
+    ListType,    # 7  - addresses
 ]
 conferenceInformationCache        = []
 activeParticipantInformationCache = []
@@ -611,10 +612,10 @@ def validateConferenceData(fileRecords):
 #############################################################################################
 
 
-def updateParticipantInformation(participantID, conferenceID, accessLevel, displayName, connectionState,calls,addresses):
-     if castRecordElement(participantID) == participantFieldDataType[0] and castRecordElement(conferenceID) == participantFieldDataType[1] and castRecordElement(displayName) == participantFieldDataType[3]:
+def updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,calls,addresses):
+     if castRecordElement(participantID) == participantFieldDataType[0] and castRecordElement(conferenceID) == participantFieldDataType[2] and castRecordElement(displayName) == participantFieldDataType[4]:
         activeParticipantInformationCache.append({participantID, conferenceID, accessLevel,displayName,connectionState,calls,addresses})
-        logging.info("updateParticipantInformation() Valid record " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
+        logging.info("updateParticipantInformation() Valid record inserted into cached: " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
         return True
      else:
         logging.error("updateParticipantInformation() Invalid record " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
@@ -711,35 +712,37 @@ def validateDataFromFile(fileRecords, type, check):
     elif type == 2:
         if check:
             for record in fileRecords:
-                logging.info("validateDataFromFile() Participant: " + str(record))
+                logging.info("validateDataFromFile() Participant info: " + str(record))
                 paramNumber = 0
-                if len(record) == 7:
+                if len(record) == 8:
                     for field in record:
-                        if paramNumber == 3 and field == "''":  # No displayName
+                        if paramNumber == 4 and field == "''":  # No displayName
                             paramNumber += 1
                         elif castRecordElement(field) == participantFieldDataType[paramNumber]:
                             if paramNumber == 0:
                                 participantID = field
                             if paramNumber == 1:
-                                conferenceID = field
+                                active = field
                             if paramNumber == 2:
-                                accessLevel = field
+                                conferenceID = field
                             if paramNumber == 3:
-                                displayName = field
+                                accessLevel = field
                             if paramNumber == 4:
-                                connectionState = field
+                                displayName = field
                             if paramNumber == 5:
-                                calls = field
+                                connectionState = field
                             if paramNumber == 6:
+                                calls = field
+                            if paramNumber == 7:
                                 addresses = field
                         else:
                             logging.error("validateDataFromFile() Invalid param ( " + str(paramNumber) + "):  " + str(field))
                         paramNumber += 1
                     else:
-                        if paramNumber != 7:
+                        if paramNumber != 8:
                             logging.info("validateDataFromFile() Invalid data paramNumber: " + str(paramNumber))
                             return -1
-                    updateParticipantInformation(participantID, conferenceID, accessLevel, displayName, connectionState,
+                    updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,
                                                  calls,addresses)
                 else:
                     logging.warning("validateDataFromFile() Invalid record: " + record)
@@ -753,19 +756,21 @@ def validateDataFromFile(fileRecords, type, check):
                     if paramNumber == 0:
                         participantID = field
                     if paramNumber == 1:
-                        conferenceID = field
+                        active = field
                     if paramNumber == 2:
-                        accessLevel = field
+                        conferenceID = field
                     if paramNumber == 3:
-                        displayName = field
+                        accessLevel = field
                     if paramNumber == 4:
-                        connectionState = field
+                        displayName = field
                     if paramNumber == 5:
-                        calls = field
+                        connectionState = field
                     if paramNumber == 6:
+                        calls = field
+                    if paramNumber == 7:
                         addresses = field
                     paramNumber += 1
-                updateParticipantInformation(participantID, conferenceID, accessLevel, displayName, connectionState,calls,addresses)
+                updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,calls,addresses)
     else:
         return -1
 
@@ -1269,25 +1274,11 @@ def getActiveParticipantList():
     logging.info("readActiveParticipantsFromFile: " + systemParticipantList)
     threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
     threadRead.start()
-    #threadRead.join()
-
+    threadRead.join()
     if activeParticipantInformationCache:
         for participant in activeParticipantInformationCache:
-            #callid = participant.get['callId']
             print participant
-            # Participant Enumerate implementation
-            # Request only Authentication username & Password
-            # 3 structures:   participants, cookie,   moreAvailable
 
-            #  Participants: {Array}
-            #
-            #  participantID:   78eb3250-632f-11e4-b642-000d7c10b020
-            #  conferenceID:    ab3798b0-4dbe-11e4-b63f-000d7c10b020
-            #  accessLevel:     chair
-            #  displayName:     ATT-Ops-SUT-1000
-            #  connectionState: connected
-            #  calls:
-            #  addressess:
     else:
         logging.error("No active participants obtained from cached")
 
@@ -1309,7 +1300,7 @@ def flex_participant_enumerate(msg):
         #xmlResponse = getActiveParticipantList()
         getActiveParticipantList()
         #print str(xmlResponse)
-        xmlResponse = 'TODO'
+        xmlResponse = 'getActiveParticipantList...'
         participantsInfo = [{'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
                              'conferenceId': '8ca0c690-dd82-11e2-84f9-000d7c112b10',
                              'accessLevel': 'chair',
