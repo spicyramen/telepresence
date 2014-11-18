@@ -6,7 +6,10 @@
 <softwareVersion>4.0(1.57)</softwareVersion>
 <buildVersion>13.0(1.48)</buildVersion>
 <mode>flex</mode>
-<maxcalls>48</maxcalls>
+<callControl>True</callControl>
+<maxCalls>2</maxCalls>
+<conferenceGUID>8ca0c690-dd82-11e2-84f9-000d7c112b10</conferenceGUID>
+<emulatePacketLoss>True</emulatePacketLoss>
 <hostName>dt12b7</hostName>
 <ipAddress>172.16.1.10</ipAddress>
 <ipAddressV6>2001:420:40ff:ff0a:20d:7cff:fe10:21c3</ipAddressV6>

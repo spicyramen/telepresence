@@ -8,11 +8,11 @@ import requests
 		Emulates TelePresence Server 8710 API Calls
 '''
 
-hostname = '110.10.0.161'
+hostname = '127.0.0.1'
 port     = '8080'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
-username = "sut"
-password = "1qaz2wsx"
+username = "sutapi"
+password = "pwd22ATS!"
 
 xmlRpcClient = xmlrpclib.ServerProxy(url,verbose=True,encoding='UTF-8')
 
@@ -21,6 +21,27 @@ def ping(msg):
 
 def show_version():
   print xmlRpcClient.show_version()
+
+def flex_participant_enumerate():
+    # options
+    # max
+    # cookie
+    # conferenceId
+
+    parameters = {'authenticationUser':username,'authenticationPassword':password}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.enumerate',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.participant.enumerate) Error'
+  	    return -1
 
 #= 'http://12.120.192.135:9311/RPC2'
 def feedbackReceiver_configure(uri):
@@ -42,7 +63,7 @@ def feedbackReceiver_configure(uri):
     result = xmlrpclib.loads( response.content, )[ 0 ]
     print result
   else:
-  	print '(conference.enumerate) Error'
+  	print '(feedbackReceiver.configure) Error'
   	return -1
 
 def conference_create(conferenceName):
@@ -118,6 +139,7 @@ try:
     ping("REQUEST")
     show_version()
     feedbackReceiver_configure('http://12.120.192.135:9311/RPC2')
+    flex_participant_enumerate()
     #conference_create("AT&T TelePresence")
     #conference_enumerate()
     #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")

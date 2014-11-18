@@ -13,3 +13,7 @@ flex.participant.sendUserMessage
 flex.participant.requestDiagnostics
 flex.participant.destroy
 feedback receiver, configure and notifications
+
+
+xmlRpcServer - Handles API calls
+callServer   - Emulate calls
