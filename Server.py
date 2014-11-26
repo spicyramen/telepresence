@@ -15,7 +15,7 @@ from itertools import islice, imap, repeat
 from types import *
 from urlparse import urlparse
 from random import randint
-import time, string, csv, threading, logging, copy, re
+import time, string, csv, threading, logging, copy, re,os
 
 # TODO: Add configuration file for settings via import
 # TODO: Refactoring
@@ -24,7 +24,7 @@ import time, string, csv, threading, logging, copy, re
 
 # #########################################################################
 hostname = "127.0.0.1"
-port = 8080
+port = 8083
 version = '4.0(1.57)'
 systemUserName = "sutapi"
 systemPassWord = "pwd22ATS!"
@@ -36,7 +36,6 @@ activeCalls = []
 activeCallsInFile = []
 feedBackServerList = {}
 feedbackReceiverIndex = []
-
 
 # Configuration parameters
 configParameters = [
@@ -162,8 +161,8 @@ conferenceFieldDataType = [
 
 #Data Type for Participant
 participantFieldDataType = [
-    StringType,  # 0  - participantId
-    BooleanType, # 1
+    BooleanType, # 0
+    StringType,  # 1  - participantId
     StringType,  # 2  - conferenceId
     StringType,  # 3  - accessLevel
     StringType,  # 4  - displayName
@@ -178,10 +177,10 @@ fileLock = threading.Lock()
 
 
 class Call():
-    def __init__(self, participantId, active, conferenceId, accessLevel, displayName, connectionState, calls,
+    def __init__(self, active,participantId,conferenceId, accessLevel, displayName, connectionState, calls,
                  addresses):
-        self.participantId = participantId
         self.active = active
+        self.participantId = participantId
         self.conferenceId = conferenceId
         self.accessLevel = accessLevel
         self.displayName = displayName
@@ -193,8 +192,8 @@ class Call():
     def insertCall(self):
         # We insert the call so we can assume format is correct
         logging.info('insertCall() Inserting new call | participantId: %s' % self.participantId)
-        newRecord = self.participantId + ',' + \
-                    str(self.active) + ',' + \
+        newRecord = str(self.active) + ',' + \
+                    self.participantId + ',' + \
                     self.conferenceId + ',' + \
                     self.accessLevel + ',' + \
                     self.displayName + ',' + \
@@ -251,11 +250,9 @@ class feedBackServer():
     def setActiveStatus(self, status):
         self.active = status
 
-
 class feedBackServerNotifier():
     def notify(self):
         logging.info('Notifying feedback Servers')
-
 
 ###########################################################################################
 # Handle XMLRequests and client login
@@ -362,6 +359,8 @@ class ReadWriteFileThread(threading.Thread):
 def initializeSystem():
     systemMode = getSystemMode()
     initResult = readConferenceFileConfiguration()
+    deleteFile(systemParticipantList)
+    recreateParticipantsFile(systemParticipantList)
     #initResult = 0
 
     if initResult == -1:
@@ -479,16 +478,16 @@ def callGenerator(maxCalls):
             #def __init__(self, participantId, active, conferenceId, accessLevel, displayName, connectionState, calls,addresses):
             #participantID,conferenceID,accessLevel,displayName,connectionState,calls,addresses
             #78eb3250-632f-11e4-b642-000d7c10b020,ab3798b0-4dbe-11e4-b63f-000d7c10b020,chair,ATT-Ops-SUT-1000,connected,{callID:'78eb0b40-632f-11e4-b642-000d7c10b020',incoming:True,address:'11111112130'},{URI:'9002'}
-            participantId = generateNewParticipantId()
             active = True
+            participantId = generateNewParticipantId()
             conferenceId = getConferenceGUID()
             accessLevel = 'chair'
             displayName = 'endpoint-' + str(call)
             connectionState = 'connected'
-            calls = {'callID': participantId, 'incoming': True, 'address': '1111111000' + str(call)}
-            addresses = {'URI': '900' + str(call)}
+            calls = "callID:" + participantId + " incoming: True address: 1111111000" + str(call)
+            addresses = "URI: 900" + str(call)
             logging.info('Creating call (' + str(call) + ')')
-            newCall = Call(participantId, active, conferenceId, accessLevel, displayName, connectionState, calls,
+            newCall = Call(active,participantId, conferenceId, accessLevel, displayName, connectionState, calls,
                            addresses)
             # Insert new calls
             activeCalls.append(newCall)
@@ -612,9 +611,9 @@ def validateConferenceData(fileRecords):
 #############################################################################################
 
 
-def updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,calls,addresses):
-     if castRecordElement(participantID) == participantFieldDataType[0] and castRecordElement(conferenceID) == participantFieldDataType[2] and castRecordElement(displayName) == participantFieldDataType[4]:
-        activeParticipantInformationCache.append({participantID, conferenceID, accessLevel,displayName,connectionState,calls,addresses})
+def updateParticipantInformation(active,participantID, conferenceID, accessLevel, displayName, connectionState,calls,addresses):
+     if castRecordElement(participantID) == participantFieldDataType[1] and castRecordElement(conferenceID) == participantFieldDataType[2] and castRecordElement(displayName) == participantFieldDataType[4]:
+        activeParticipantInformationCache.append([participantID, conferenceID, accessLevel,displayName,connectionState,calls,addresses])
         logging.info("updateParticipantInformation() Valid record inserted into cached: " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
         return True
      else:
@@ -635,17 +634,34 @@ def authenticationModule(username, password):
     else:
         return False
 
+#############################################################################################
+
+def recreateParticipantsFile(filename):
+    try:
+        logging.info("recreateParticipantsFile() Creating new file")
+        file = open(filename, "w")
+        file.write("active,participantId,conferenceId,accessLevel,displayName,connectionState,calls,addresses\n")
+        file.close()
+    except OSError,e:
+        logging.error("recreateParticipantsFile() Exception found" + str(e))
+        pass
 
 #############################################################################################
 
+def deleteFile(filename):
+    try:
+        os.remove(filename)
+    except OSError,e:
+        logging.error("recreateParticipantsFile() Exception found" + str(e))
+        pass
+
+#############################################################################################
 # Return number of lines in file
 def readFileLines(fname):
     with open(fname) as f:
         for i, l in enumerate(f):
             pass
     return i + 1
-
-
 
 #############################################################################################
 
@@ -720,9 +736,9 @@ def validateDataFromFile(fileRecords, type, check):
                             paramNumber += 1
                         elif castRecordElement(field) == participantFieldDataType[paramNumber]:
                             if paramNumber == 0:
-                                participantID = field
-                            if paramNumber == 1:
                                 active = field
+                            if paramNumber == 1:
+                                participantID = field
                             if paramNumber == 2:
                                 conferenceID = field
                             if paramNumber == 3:
@@ -742,6 +758,8 @@ def validateDataFromFile(fileRecords, type, check):
                         if paramNumber != 8:
                             logging.info("validateDataFromFile() Invalid data paramNumber: " + str(paramNumber))
                             return -1
+
+                    #Active field is just used for internal purposes
                     updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,
                                                  calls,addresses)
                 else:
@@ -770,9 +788,11 @@ def validateDataFromFile(fileRecords, type, check):
                     if paramNumber == 7:
                         addresses = field
                     paramNumber += 1
+                 #Active field is just used for internal purposes
                 updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,calls,addresses)
     else:
         return -1
+
 
 
 #############################################################################################
@@ -1256,31 +1276,88 @@ def getCookieValue():
     #Generate random string:
     return '265;0;' + random_string(3)
 
-
-def getActiveParticipantList():
+def processParticipantInformation(participant):
     """
-        [
-        {'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
+    Process participant information from file, assuming participant is already processed
+    :return:
+        [{
+      0  participantId: b3fk365k-3c33-xlce-sc8f-85yxb1kvx621,
+      1  conferenceId: 8ca0c690-dd82-11e2-84f9-000d7c112b10,
+      2  accessLevel: chair,
+      3  displayName: endpoint-1,
+      4  connectionState: connected,
+      5  calls: [{callID: b3fk365k-3c33-xlce-sc8f-85yxb1kvx621, incoming: True, address: 11111110001}],
+      6  addresses: [{URI: 9001}]
+         }]
+
+        [{'displayName': 'endpoint-1',
+           'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
+           'calls': [{'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
+            'incoming': True, 'address': '11111110001'}],
+            'conferenceId': '8ca0c690-dd82-11e2-84f9-000d7c112b10',
+            'connectionState': 'connected',
+            'accessLevel': 'chair',
+            'addresses': [{'URI': '9001'}]
+        }]
+    """
+
+    regex = re.compile(r"\b(\w+)\s*:\s*([^:]*)(?=\s+\w+\s*:|$)")
+    calls = []
+    addresses = []
+    participantProcessed = {}
+
+    print "----------------------------------------------"
+    print "participantId: " + participant[0]
+    print "conferenceId: " + participant[1]
+    print "accessLevel: " + participant[2]
+    print "displayName: " + participant[3]
+    print "connectionState: " + participant[4]
+    field = dict(regex.findall(participant[5]));
+    field['incoming'] = True
+    calls.append(field)
+    print "calls: " + str(field)
+    field = dict(regex.findall(participant[6]));
+    addresses.append(field)
+    print "addresses: " + str(field)
+
+    participantProcessed['participantId'] = participant[0]
+    participantProcessed['conferenceId']  = participant[1]
+    participantProcessed['accessLevel']   = participant[2]
+    participantProcessed['displayName']   = participant[3]
+    participantProcessed['connectionState'] = participant[4]
+    participantProcessed['calls'] = calls
+    participantProcessed['addresses'] = addresses
+
+    return participantProcessed
+
+
+def buildActiveParticipantList():
+    """
+
+        [{'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
         'conferenceId': '8ca0c690-dd82-11e2-84f9-000d7c112b10',
+        'active': True
         'accessLevel': 'chair',
         'displayName': 'endpoint-1',
         'connectionState': 'connected',
-        'calls': {'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621', 'incoming': True, 'address': '11111110001'},
-        'addresses': {'URI': '9001'}
-        }
-        ]
+        'calls': [{'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621', 'incoming': True, 'address': '11111110001'}],
+        'addresses': [{'URI': '9001'}]
+        }]
     """
     print "readActiveParticipantsFromFile() Updating cache...."
     logging.info("readActiveParticipantsFromFile: " + systemParticipantList)
     threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
     threadRead.start()
     threadRead.join()
+    participantsProcessed = []
     if activeParticipantInformationCache:
         for participant in activeParticipantInformationCache:
-            print participant
-
+            participantsProcessed.append(processParticipantInformation(participant))
     else:
-        logging.error("No active participants obtained from cached")
+        logging.error("buildActiveParticipantList() No active participants obtained from cached")
+
+    logging.info("buildActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
+    return participantsProcessed
 
 def flex_participant_enumerate(msg):
     logInfo("flex_participant_enumerate() API flex.participant.enumerate")
@@ -1298,17 +1375,18 @@ def flex_participant_enumerate(msg):
     else:
         #Participants
         #xmlResponse = getActiveParticipantList()
-        getActiveParticipantList()
+        participantsInfo = buildActiveParticipantList()
         #print str(xmlResponse)
         xmlResponse = 'getActiveParticipantList...'
-        participantsInfo = [{'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
+        """participantsInfo = [{'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
                              'conferenceId': '8ca0c690-dd82-11e2-84f9-000d7c112b10',
                              'accessLevel': 'chair',
                              'displayName': 'endpoint-1',
                              'connectionState': 'connected',
-                             'calls': {'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621', 'incoming': True,'address': '11111110001'},
-                             'addresses': {'URI': '9001'}}]
-
+                             'calls': [{'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621', 'incoming': True,'address': '11111110001'}],
+                             'addresses': [{'URI': '9001'}]
+                            }]
+        """
         cookieValue = getCookieValue()
         moreAvailable = 'moreAvailable'
 
@@ -1343,6 +1421,7 @@ server.register_function(ping_function, 'ping')
         server.register_function(conference_status, 'conference.status')
         server.register_function(conference_uninvite, 'conference.uninvite')"""
 
+# flexmode
 server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
 server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
 server.register_instance(Methods())
@@ -1356,11 +1435,12 @@ def telepresenceServer():
     logging.info("-----------------------Initializing server------------------------")
     print "-----------------------Initializing server------------------------"
     try:
+        """start"""
         initializeSystem()
         feedbackReceiverInitialize()
         xml = Process(target=startXmlRpc)
         cc = Process(target=startCallServer)
-        # Start xmlServer and CallServer
+        """Start xmlServer and CallServer"""
         xml.start()
         cc.start()
         xml.join()
@@ -1371,7 +1451,6 @@ def telepresenceServer():
     except Exception, e:
         print "Exception found" + str(e)
         logging.error("Exception found " + str(e))
-
 
 if __name__ == '__main__':
     telepresenceServer()
