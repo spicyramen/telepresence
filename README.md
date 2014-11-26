@@ -1,19 +1,19 @@
-Cisco Telepresence Server Emulator
+# Cisco Telepresence Server Emulator
 ==================================
 
-Cisco TelePresence Server 8710 API emulator
+## Cisco TelePresence Server 8710 API emulator
 Emulates Cisco TelePresence Server 8710 API
 
 
 Support flex.mode methods:
-flex.participant.enumerate
-flex.participant.setMute
-flex.participant.modify
-flex.participant.sendUserMessage
-flex.participant.requestDiagnostics
-flex.participant.destroy
-feedback receiver, configure and notifications
+1. flex.participant.enumerate
+2. flex.participant.setMute
+3. flex.participant.modify
+4. flex.participant.sendUserMessage
+5. flex.participant.requestDiagnostics
+6. flex.participant.destroy
+7. feedback receiver, configure and notifications
 
 
-xmlRpcServer - Handles API calls
-callServer   - Emulate calls
+### xmlRpcServer - Handles API calls
+### callServer   - Emulate calls
