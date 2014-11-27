@@ -308,7 +308,6 @@ class ReadWriteFileThread(threading.Thread):
         self.FileName = FileName
         self.Operation = Operation
         self.Record = Record
-        #print ('ReadWriteFileThread() File name: ' + FileName)
 
     def run(self):
         #print "Starting " + self.name + " " + str(self.threadID)
@@ -356,11 +355,34 @@ class ReadWriteFileThread(threading.Thread):
             except IOError:
                 print 'ReadWriteFileThread() IOError Close file'
                 fileLock.release()
-                config_file.close();
+                config_file.close()
+                pass
+        #Remove record to file
+        elif (self.Operation == "d"):
+            try:
+                working_file = self.FileName + '~'
+                with open(self.FileName) as config_file, open(working_file, "w") as working:
+                    try:
+                        for line in config_file:
+                            if self.Record not in line: # Delete the participant
+                                working.write(line)
+                        os.rename(working_file, config_file)
+                    finally:
+                        fileLock.release()
+                        config_file.close()
+                        working.close()
+                        #print 'ReadWriteFileThread() Close file'
+            except IOError:
+                print 'ReadWriteFileThread() IOError Close file'
+                fileLock.release()
+                config_file.close()
+                working.close()
                 pass
         else:
             print "ReadWriteFileThread() Invalid operation: " + str(self.Operation)
             fileLock.release()
+
+
 
 
 ###########################################################################################
@@ -474,7 +496,34 @@ def insertActiveCallsToFile():
     for call in callsGenerated:
         call.insertCall()
 
+#############################################################################################
 
+def deleteParticipantFromFile(participantId):
+    logging.info('deleteParticipantFromFile()')
+    try:
+        threadRead = ReadWriteFileThread("Thread-Delete", 3, systemParticipantList, "d",participantId)
+        threadRead.start()
+        threadRead.join()
+    except Exception,e:
+        logging.exception(str(e))
+        return False
+#############################################################################################
+
+def deleteParticipantFromCache(participantId):
+    logging.info('deleteParticipantFromCache()')
+    for participant in activeParticipantInformationCache:
+        call = processParticipantInformation(participant)
+        if call['participantID'] == participantId:
+            activeParticipantInformationCache.remove(participant)
+            return True
+
+    return False
+
+def deleteParticipantHelper(participantId):
+    if deleteParticipantFromFile(participantId) and deleteParticipantFromCache(participantId):
+        return True
+    else:
+        return False
 #############################################################################################
 
 def callGenerator(maxCalls):
@@ -846,7 +895,7 @@ def updateConfigurationInfo():
     logging.info("updateConfigurationInfo: " + systemConferenceList)
     threadRead = ReadWriteFileThread("Thread-Read", 1, systemConfigurationFile, "r", "")
     threadRead.start()
-    #threadRead.join()
+    threadRead.join()
 
 
 #############################################################################################
@@ -1463,6 +1512,75 @@ def flex_participant_setMute(msg):
             logging.error('flex_participant_setMute() participantID not found')
             return fault_code(systemErrors[5], 5)
 
+def flex_participant_sendUserMessage(msg):
+    print "flex_participant_sendUserMessage() API flex.participant.sendUserMessage"
+    logInfo("flex_particflex_participant_sendUserMessageipant_setMute() API flex.participant.sendUserMessage")
+    # Optional parameters:
+
+    # Mandatory
+    # participantId
+    params = xml_RequestHandler(msg)
+    xmlResponse = []
+    participantFound = False
+
+
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'participantID':
+                logging.info('participantId param found')
+                participantReq = params.get('participantID')
+                if getActiveCallsParticipantId(participantReq):
+                    logging.info('participantId is active')
+                    participantFound = True
+        if (participantFound):
+            xmlResponse = {'status': 'operation succesful'}
+            return xmlResponse
+        else:
+            logging.error('flex_participant_sendUserMessage() participantID not found')
+            return fault_code(systemErrors[5], 5)
+
+def flex_participant_destroy(msg):
+    print "flex_participant_destroy() API flex.participant.destroy"
+    logInfo("flex_participant_destroy() API flex.participant.destroy")
+    # Optional parameters:
+
+    # Mandatory
+    # participantId
+    params = xml_RequestHandler(msg)
+    xmlResponse = []
+    participantFound = False
+
+
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'participantID':
+                logging.info('participantId param found')
+                participantReq = params.get('participantID')
+                if deleteParticipantHelper(participantReq):
+                    logging.info('participantId is active will be terminated')
+                    participantFound = True
+                else:
+                    logging.error('Error deleting participant')
+                    
+        if (participantFound):
+            xmlResponse = {'status': 'operation succesful'}
+            return xmlResponse
+        else:
+            logging.error('flex_participant_destroy() participantID not found')
+            return fault_code(systemErrors[5], 5)
+
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
     def show_version(self):
@@ -1490,6 +1608,7 @@ server.register_function(ping_function, 'ping')
 server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
 server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
 server.register_function(flex_participant_setMute, 'flex.participant.setMute')
+server.register_function(flex_participant_sendUserMessage, 'flex.participant.sendUserMessage')
 server.register_instance(Methods())
 
 
