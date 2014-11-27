@@ -24,7 +24,7 @@ import time, string, csv, threading, logging, copy, re,os
 
 # #########################################################################
 hostname = "127.0.0.1"
-port = 8085
+port = 8086
 version = '4.0(1.57)'
 systemUserName = "sutapi"
 systemPassWord = "pwd22ATS!"
@@ -186,22 +186,25 @@ class Call():
         self.connectionState = connectionState
         self.calls = calls
         self.addresses = addresses
-        print('Call created with participantID: %s' % self.participantID )
+        print('Call() instance created participantID: %s' % self.participantID )
 
     def insertCall(self):
         # We insert the call so we can assume format is correct
-        logging.info('insertCall() Inserting new call | participantID: %s' % self.participantID)
-        newRecord = str(self.active) + ',' + \
-                    self.participantID + ',' + \
-                    self.conferenceId + ',' + \
-                    self.accessLevel + ',' + \
-                    self.displayName + ',' + \
-                    self.connectionState + ',' + \
-                    str(self.calls) + ',' + \
-                    str(self.addresses)
-        threadWrite = ReadWriteFileThread("insertCall() Thread-Write", 3, systemParticipantList, "a+", newRecord)
-        threadWrite.start()
-        threadWrite.join()
+        try:
+            logging.info('Call.insertCall() Inserting new call | participantID: %s' % self.participantID)
+            newRecord = str(self.active) + ',' + \
+                        self.participantID + ',' + \
+                        self.conferenceId + ',' + \
+                        self.accessLevel + ',' + \
+                        self.displayName + ',' + \
+                        self.connectionState + ',' + \
+                        str(self.calls) + ',' + \
+                        str(self.addresses)
+            threadWrite = ReadWriteFileThread("insertCall() Thread-Write", 3, systemParticipantList, "a+", newRecord)
+            threadWrite.start()
+            threadWrite.join()
+        except Exception,e:
+            logging.exception('Call.insertCall()' + str(e))
 
     def getParticipantId(self):
         return self.participantID
@@ -318,8 +321,8 @@ class ReadWriteFileThread(threading.Thread):
                         fileRecords = csv.reader(config_file, delimiter=',', skipinitialspace=True)
                         allRecords = [record for record in fileRecords]
                     finally:
-                        #print 'ReadWriteFileThread() Close file'
                         config_file.close();
+                        fileLock.release()
                         #Check file format
                         if self.FileName == systemConferenceList:
                             if validateDataFromFile(allRecords, 1, False) == -1:
@@ -337,6 +340,7 @@ class ReadWriteFileThread(threading.Thread):
                             logging.error('Invalid file reference')
                             return -1
             except IOError:
+                fileLock.release()
                 config_file.close();
                 pass
         #Add record to file
@@ -346,15 +350,17 @@ class ReadWriteFileThread(threading.Thread):
                     try:
                         config_file.write(self.Record + '\n')
                     finally:
+                        fileLock.release()
                         config_file.close();
                         #print 'ReadWriteFileThread() Close file'
             except IOError:
                 print 'ReadWriteFileThread() IOError Close file'
+                fileLock.release()
                 config_file.close();
                 pass
         else:
             print "ReadWriteFileThread() Invalid operation: " + str(self.Operation)
-        fileLock.release()
+            fileLock.release()
 
 
 ###########################################################################################
@@ -464,7 +470,7 @@ def getActiveCallsFromFile():
 #############################################################################################
 
 def insertActiveCallsToFile():
-    logging.info('insertActiveCallsToFile() total number of active calls into cached: ' + str(len(callsGenerated)))
+    logging.info('insertActiveCallsToFile() total number of active calls inserted to file: ' + str(len(callsGenerated)))
     for call in callsGenerated:
         call.insertCall()
 
@@ -1317,19 +1323,24 @@ def processParticipantInformation(participant):
     addresses = []
     participantProcessed = {}
 
+    logging.info('processParticipantInformation()')
+    logging.info('----------------------------------------------')
     print "----------------------------------------------"
     print "participantID: " + participant[0]
+    logging.info('participantID: ' + participant[0])
     print "conferenceId: " + participant[1]
-    print "accessLevel: " + participant[2]
-    print "displayName: " + participant[3]
-    print "connectionState: " + participant[4]
+    logging.info('conferenceId: ' + participant[1])
+
+    #print "accessLevel: " + participant[2]
+    #print "displayName: " + participant[3]
+    #print "connectionState: " + participant[4]
     field = dict(regex.findall(participant[5]));
     field['incoming'] = True
     calls.append(field)
-    print "calls: " + str(field)
+    #print "calls: " + str(field)
     field = dict(regex.findall(participant[6]));
     addresses.append(field)
-    print "addresses: " + str(field)
+    #print "addresses: " + str(field)
 
     participantProcessed['participantID'] = participant[0]
     participantProcessed['conferenceId']  = participant[1]
@@ -1339,29 +1350,37 @@ def processParticipantInformation(participant):
     participantProcessed['calls'] = calls
     participantProcessed['addresses'] = addresses
 
+    logging.info('processParticipantInformation() ' + str(participantProcessed['participantID']))
     return participantProcessed
 
 
-def buildActiveParticipantList():
-    logging.info("readActiveParticipantsFromFile: " + systemParticipantList)
-    threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
-    threadRead.start()
-    threadRead.join()
-    participantsProcessed = []
-    if activeParticipantInformationCache:
-        for participant in activeParticipantInformationCache:
-            participantsProcessed.append(processParticipantInformation(participant))
-    else:
-        logging.error("buildActiveParticipantList() No active participants obtained from cached")
+def getActiveParticipantList():
+    try:
+        logging.info("readActiveParticipantsFromFile: " + systemParticipantList)
+        participantsProcessed = []
 
-    logging.info("buildActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
-    if len(participantsProcessed)>=1:
-        return participantsProcessed
-    else:
-        return None
+        threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
+        threadRead.start()
+        threadRead.join()
+
+        if activeParticipantInformationCache:
+            for participant in activeParticipantInformationCache:
+                participantsProcessed.append(processParticipantInformation(participant))
+        else:
+            logging.error("buildActiveParticipantList() No active participants obtained from cached")
+
+        logging.info("buildActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
+        if len(participantsProcessed)>=1:
+            return participantsProcessed
+        else:
+            return None
+    except Exception,e:
+        print "Exception found" + str(e)
+        logging.exception("Exception found " + str(e))
 
 
 def flex_participant_enumerate(msg):
+    print('flex_participant_enumerate() API flex.participant.enumerate')
     logInfo("flex_participant_enumerate() API flex.participant.enumerate")
     # Optional parameters:
     # cookie
@@ -1378,9 +1397,13 @@ def flex_participant_enumerate(msg):
         return fault_code(systemErrors[101], 101)
     else:
         #Participants
-        participantsInfo = buildActiveParticipantList()
+        participantsInfo = getActiveParticipantList()
         cookieValue = getCookieValue()
 
+        if participantsInfo==None:
+            return fault_code(systemErrors[5], 5)
+
+        # Validate number of participants
         if len(participantsInfo) > 0 and len(participantsInfo) <=10:
             moreAvailable = False
         elif len(participantsInfo)>=10:
@@ -1390,7 +1413,6 @@ def flex_participant_enumerate(msg):
             return fault_code(systemErrors[201], 201)
 
         if (participantsInfo != None):
-            logInfo(xmlResponse)
             xmlResponse = {'Cookie': cookieValue, 'moreAvailable': moreAvailable, 'participants': participantsInfo}
             return xmlResponse
         else:
@@ -1435,7 +1457,6 @@ def flex_participant_setMute(msg):
                 logging.info('audioTxMute param found')
 
         if (participantFound):
-            logInfo(xmlResponse)
             xmlResponse = {'status': 'operation succesful'}
             return xmlResponse
         else:
@@ -1495,7 +1516,7 @@ def telepresenceServer():
         logging.info("Cisco TelePresence Server 8710 Emulator stopping....")
     except Exception, e:
         print "Exception found" + str(e)
-        logging.error("Exception found " + str(e))
+        logging.exception("Exception found " + str(e))
 
 if __name__ == '__main__':
     telepresenceServer()
