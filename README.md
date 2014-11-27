@@ -1,9 +1,6 @@
 # Cisco Telepresence Server Emulator
-==================================
 
-## Cisco TelePresence Server 8710 API emulator
-Emulates Cisco TelePresence Server 8710 API
-
+#### Emulates Cisco TelePresence Server 8710 API
 
 Support flex.mode methods:
 1. flex.participant.enumerate

@@ -24,7 +24,7 @@ import time, string, csv, threading, logging, copy, re,os
 
 # #########################################################################
 hostname = "127.0.0.1"
-port = 8083
+port = 8085
 version = '4.0(1.57)'
 systemUserName = "sutapi"
 systemPassWord = "pwd22ATS!"
@@ -32,8 +32,7 @@ systemConfigurationFile = 'conf/system.xml'
 systemConferenceList = 'conf/conference.conf'
 systemParticipantList = 'conf/participants.conf'
 systemMode = -1
-activeCalls = []
-activeCallsInFile = []
+callsGenerated = []
 feedBackServerList = {}
 feedbackReceiverIndex = []
 
@@ -180,20 +179,20 @@ class Call():
     def __init__(self, active,participantId,conferenceId, accessLevel, displayName, connectionState, calls,
                  addresses):
         self.active = active
-        self.participantId = participantId
+        self.participantID = participantId
         self.conferenceId = conferenceId
         self.accessLevel = accessLevel
         self.displayName = displayName
         self.connectionState = connectionState
         self.calls = calls
         self.addresses = addresses
-        print('Call created with participantId: %s' % self.participantId )
+        print('Call created with participantID: %s' % self.participantID )
 
     def insertCall(self):
         # We insert the call so we can assume format is correct
-        logging.info('insertCall() Inserting new call | participantId: %s' % self.participantId)
+        logging.info('insertCall() Inserting new call | participantID: %s' % self.participantID)
         newRecord = str(self.active) + ',' + \
-                    self.participantId + ',' + \
+                    self.participantID + ',' + \
                     self.conferenceId + ',' + \
                     self.accessLevel + ',' + \
                     self.displayName + ',' + \
@@ -204,6 +203,11 @@ class Call():
         threadWrite.start()
         threadWrite.join()
 
+    def getParticipantId(self):
+        return self.participantID
+
+    def getCallStatus(self):
+        return self.active
 
 ###########################################################################################
 # Handle XMLRequests from each Feedback Configure requests
@@ -360,7 +364,7 @@ def initializeSystem():
     systemMode = getSystemMode()
     initResult = readConferenceFileConfiguration()
     deleteFile(systemParticipantList)
-    recreateParticipantsFile(systemParticipantList)
+    createParticipantsFile(systemParticipantList)
     #initResult = 0
 
     if initResult == -1:
@@ -454,26 +458,25 @@ def getSystemMode(*args, **kwargs):
 #############################################################################################
 
 def getActiveCallsFromFile():
-    global activeCallsInFile
-    logging.info('insertActiveCallsToFile() total number of active calls: ' + str(len(activeCalls)))
+    logging.info('getActiveCallsFromFile() total number of active calls  in file')
 
 
 #############################################################################################
 
 def insertActiveCallsToFile():
-    global activeCalls
-    logging.info('insertActiveCallsToFile() total number of active calls: ' + str(len(activeCalls)))
-    for call in activeCalls:
+    logging.info('insertActiveCallsToFile() total number of active calls into cached: ' + str(len(callsGenerated)))
+    for call in callsGenerated:
         call.insertCall()
 
 
 #############################################################################################
 
 def callGenerator(maxCalls):
-    logging.info('callEmulator() emulating Calls: ' + maxCalls)
+    global callsGenerated
+    logging.info('callGenerator() emulating Calls: ' + maxCalls)
     maxCalls = convertStr(maxCalls)
     if maxCalls > 0:
-        logging.info('callEmulator() Creating calls...')
+        logging.info('callGenerator() Creating calls...')
         for call in range(1, maxCalls + 1):
             #def __init__(self, participantId, active, conferenceId, accessLevel, displayName, connectionState, calls,addresses):
             #participantID,conferenceID,accessLevel,displayName,connectionState,calls,addresses
@@ -490,8 +493,20 @@ def callGenerator(maxCalls):
             newCall = Call(active,participantId, conferenceId, accessLevel, displayName, connectionState, calls,
                            addresses)
             # Insert new calls
-            activeCalls.append(newCall)
+            callsGenerated.append(newCall)
+            logging.info('callGenerator() call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
 
+    logging.info('callGenerator() Calls inserted: [' + str(len(callsGenerated)) + ']')
+
+
+#############################################################################################
+def getActiveCallsParticipantId(participantId):
+    logging.info('getActiveCallsParticipantId() total number of active calls: ' + str(len(activeParticipantInformationCache)))
+    for participant in activeParticipantInformationCache:
+        call = processParticipantInformation(participant)
+        if call['participantID'] == participantId:
+            return True
+    return False
 
 #############################################################################################
 
@@ -509,9 +524,7 @@ def startCallServer():
         print "Call emulator started succesfully."
         callGenerator(getSystemMode("maxCalls"))
         insertActiveCallsToFile()
-        #cc = Process(target=insertActiveCallsToFile(), args=())
-        #cc.start()
-        #cc.join()
+
     else:
         logging.error('Call emulator service failed to start')
         print "Call emulator service failed to start'"
@@ -636,11 +649,11 @@ def authenticationModule(username, password):
 
 #############################################################################################
 
-def recreateParticipantsFile(filename):
+def createParticipantsFile(filename):
     try:
         logging.info("recreateParticipantsFile() Creating new file")
         file = open(filename, "w")
-        file.write("active,participantId,conferenceId,accessLevel,displayName,connectionState,calls,addresses\n")
+        file.write("active,participantID,conferenceID,accessLevel,displayName,connectionState,calls,addresses\n")
         file.close()
     except OSError,e:
         logging.error("recreateParticipantsFile() Exception found" + str(e))
@@ -670,11 +683,11 @@ def readActiveParticipants(fileRecords):
     logging.info(
         "readActiveParticipants() Processing " + str(readFileLines(systemConferenceList) - 1) + " record(s)...")
     del fileRecords[0]
-    activeCalls = copy.copy(fileRecords)
+    activeCallsInFileRecords = copy.copy(fileRecords)
 
-    if len(activeCalls) < 1:
+    if len(activeCallsInFileRecords) < 1:
         return -1
-    for call in activeCalls:
+    for call in activeCallsInFileRecords:
         logging.info("readActiveParticipants()" + str(call))
         paramNumber = 0
         if len(call) == 7:
@@ -685,7 +698,6 @@ def readActiveParticipants(fileRecords):
             return -1
 
 
-#############################################################################################
 
 # Verify records in file
 def validateDataFromFile(fileRecords, type, check):
@@ -1047,7 +1059,7 @@ def noneify(s):
 def listify(s):
     '''will convert a string representation of a list
     into list of homogenous basic types.  type of elements in
-    list is determined via first element and successive 
+    list is determined via first element and successive
     elements are casted to that type'''
 
     #this cover everything?
@@ -1271,7 +1283,6 @@ def feedbackReceiver_configure(msg):
 
     return xmlResponse
 
-
 def getCookieValue():
     #Generate random string:
     return '265;0;' + random_string(3)
@@ -1307,7 +1318,7 @@ def processParticipantInformation(participant):
     participantProcessed = {}
 
     print "----------------------------------------------"
-    print "participantId: " + participant[0]
+    print "participantID: " + participant[0]
     print "conferenceId: " + participant[1]
     print "accessLevel: " + participant[2]
     print "displayName: " + participant[3]
@@ -1320,7 +1331,7 @@ def processParticipantInformation(participant):
     addresses.append(field)
     print "addresses: " + str(field)
 
-    participantProcessed['participantId'] = participant[0]
+    participantProcessed['participantID'] = participant[0]
     participantProcessed['conferenceId']  = participant[1]
     participantProcessed['accessLevel']   = participant[2]
     participantProcessed['displayName']   = participant[3]
@@ -1332,19 +1343,6 @@ def processParticipantInformation(participant):
 
 
 def buildActiveParticipantList():
-    """
-
-        [{'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
-        'conferenceId': '8ca0c690-dd82-11e2-84f9-000d7c112b10',
-        'active': True
-        'accessLevel': 'chair',
-        'displayName': 'endpoint-1',
-        'connectionState': 'connected',
-        'calls': [{'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621', 'incoming': True, 'address': '11111110001'}],
-        'addresses': [{'URI': '9001'}]
-        }]
-    """
-    print "readActiveParticipantsFromFile() Updating cache...."
     logging.info("readActiveParticipantsFromFile: " + systemParticipantList)
     threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
     threadRead.start()
@@ -1357,7 +1355,11 @@ def buildActiveParticipantList():
         logging.error("buildActiveParticipantList() No active participants obtained from cached")
 
     logging.info("buildActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
-    return participantsProcessed
+    if len(participantsProcessed)>=1:
+        return participantsProcessed
+    else:
+        return None
+
 
 def flex_participant_enumerate(msg):
     logInfo("flex_participant_enumerate() API flex.participant.enumerate")
@@ -1365,8 +1367,10 @@ def flex_participant_enumerate(msg):
     # cookie
     # max
     # conferenceID
-    params = xml_RequestHandler(msg)
+
+    moreAvailable = False
     xmlResponse = []
+    params = xml_RequestHandler(msg)
 
     if (params == 34):
         return fault_code(systemErrors[34], 34)
@@ -1374,29 +1378,69 @@ def flex_participant_enumerate(msg):
         return fault_code(systemErrors[101], 101)
     else:
         #Participants
-        #xmlResponse = getActiveParticipantList()
         participantsInfo = buildActiveParticipantList()
-        #print str(xmlResponse)
-        xmlResponse = 'getActiveParticipantList...'
-        """participantsInfo = [{'participantId': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621',
-                             'conferenceId': '8ca0c690-dd82-11e2-84f9-000d7c112b10',
-                             'accessLevel': 'chair',
-                             'displayName': 'endpoint-1',
-                             'connectionState': 'connected',
-                             'calls': [{'callID': 'b3fk365k-3c33-xlce-sc8f-85yxb1kvx621', 'incoming': True,'address': '11111110001'}],
-                             'addresses': [{'URI': '9001'}]
-                            }]
-        """
         cookieValue = getCookieValue()
-        moreAvailable = 'moreAvailable'
 
-        if (xmlResponse != -1 and len(xmlResponse) >= 2):
+        if len(participantsInfo) > 0 and len(participantsInfo) <=10:
+            moreAvailable = False
+        elif len(participantsInfo)>=10:
+            participantsInfo[:10]
+            moreAvailable = True
+        else:
+            return fault_code(systemErrors[201], 201)
+
+        if (participantsInfo != None):
             logInfo(xmlResponse)
-            xmlResponse = {'Cookie': cookieValue, 'moreAvailable': False, 'participants': participantsInfo}
+            xmlResponse = {'Cookie': cookieValue, 'moreAvailable': moreAvailable, 'participants': participantsInfo}
             return xmlResponse
         else:
             return fault_code(systemErrors[201], 201)
 
+def flex_participant_setMute(msg):
+    print "flex_participant_setMute() API flex.participant.setMute"
+    logInfo("flex_participant_setMute() API flex.participant.setMute")
+    # Optional parameters:
+    # audioRxMute
+    # videoRxMute
+    # audioTxMute
+    # audioTxMute
+    # Mandatory
+    # participantId
+    params = xml_RequestHandler(msg)
+    xmlResponse = []
+    participantFound = False
+
+
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'participantID':
+                logging.info('participantId param found')
+                participantReq = params.get('participantID')
+                if getActiveCallsParticipantId(participantReq):
+                    logging.info('participantId is active')
+                    participantFound = True
+            if element == 'audioRxMute':
+                logging.info('audioRxMute param found')
+            if element == 'videoRxMute':
+                logging.info('videoRxMute param found')
+            if element == 'audioTxMute':
+                logging.info('audioTxMute param found')
+            if element == 'audioTxMute':
+                logging.info('audioTxMute param found')
+
+        if (participantFound):
+            logInfo(xmlResponse)
+            xmlResponse = {'status': 'operation succesful'}
+            return xmlResponse
+        else:
+            logging.error('flex_participant_setMute() participantID not found')
+            return fault_code(systemErrors[5], 5)
 
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
@@ -1424,6 +1468,7 @@ server.register_function(ping_function, 'ping')
 # flexmode
 server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
 server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
+server.register_function(flex_participant_setMute, 'flex.participant.setMute')
 server.register_instance(Methods())
 
 

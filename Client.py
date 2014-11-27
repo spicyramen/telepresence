@@ -9,7 +9,7 @@ import requests
 '''
 
 hostname = '127.0.0.1'
-port     = '8083'
+port     = '8085'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
 username = "sutapi"
 password = "pwd22ATS!"
@@ -21,6 +21,22 @@ def ping(msg):
 
 def show_version():
   print xmlRpcClient.show_version()
+
+def flex_participant_setMute():
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': '1uoj602g-fgk0-tcul-o82t-ezuf8hcg7ytw'}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.setMute',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.participant.enumerate) Error'
+  	    return -1
 
 def flex_participant_enumerate():
     # options
@@ -136,10 +152,11 @@ def list_methods():
   print xmlRpcClient.system.listMethods()
 
 try:
-    ping("REQUEST")
-    show_version()
+    #ping("REQUEST")
+    #show_version()
     feedbackReceiver_configure('http://12.120.192.135:9311/RPC2')
     flex_participant_enumerate()
+    flex_participant_setMute()
     #conference_create("AT&T TelePresence")
     #conference_enumerate()
     #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")
