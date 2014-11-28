@@ -9,7 +9,7 @@ import requests
 '''
 
 hostname = '127.0.0.1'
-port     = '8086'
+port     = '8082'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
 username = "sutapi"
 password = "pwd22ATS!"
@@ -23,7 +23,7 @@ def show_version():
   print xmlRpcClient.show_version()
 
 def flex_participant_setMute():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': '1z2g9wmb-myv4-biet-ii4a-0xhsmdu8swft'}
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'o8q9qzxo-5wwq-dwl1-evcc-h2bz1bwe2dwa'}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'flex.participant.setMute',encoding='UTF-8')
     response = requests.request( 'POST', url,
@@ -35,7 +35,23 @@ def flex_participant_setMute():
         result = xmlrpclib.loads( response.content, )[ 0 ]
         print result
     else:
-  	    print '(flex.participant.enumerate) Error'
+  	    print '(flex.participant.setMute) Error'
+  	    return -1
+
+def flex_participant_destroy():
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'o8q9qzxo-5wwq-dwl1-evcc-h2bz1bwe2dwa'}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.destroy',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.participant.destroy) Error'
   	    return -1
 
 def flex_participant_enumerate():
@@ -157,6 +173,8 @@ try:
     #feedbackReceiver_configure('http://12.120.192.135:9311/RPC2')
     flex_participant_enumerate()
     flex_participant_setMute()
+    flex_participant_destroy()
+    flex_participant_enumerate()
     #conference_create("AT&T TelePresence")
     #conference_enumerate()
     #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")

@@ -24,7 +24,7 @@ import time, string, csv, threading, logging, copy, re,os
 
 # #########################################################################
 hostname = "127.0.0.1"
-port = 8086
+port = 8082
 version = '4.0(1.57)'
 systemUserName = "sutapi"
 systemPassWord = "pwd22ATS!"
@@ -361,23 +361,29 @@ class ReadWriteFileThread(threading.Thread):
         elif (self.Operation == "d"):
             try:
                 working_file = self.FileName + '~'
+
                 with open(self.FileName) as config_file, open(working_file, "w") as working:
                     try:
                         for line in config_file:
                             if self.Record not in line: # Delete the participant
                                 working.write(line)
-                        os.rename(working_file, config_file)
+                        os.rename(working_file, self.FileName)
                     finally:
                         fileLock.release()
                         config_file.close()
                         working.close()
                         #print 'ReadWriteFileThread() Close file'
             except IOError:
-                print 'ReadWriteFileThread() IOError Close file'
+                logging.exception('ReadWriteFileThread() IOError Close file')
                 fileLock.release()
                 config_file.close()
                 working.close()
                 pass
+            except Exception,e:
+                logging.exception(str(e))
+                fileLock.release()
+                config_file.close()
+                working.close()
         else:
             print "ReadWriteFileThread() Invalid operation: " + str(self.Operation)
             fileLock.release()
@@ -504,22 +510,28 @@ def deleteParticipantFromFile(participantId):
         threadRead = ReadWriteFileThread("Thread-Delete", 3, systemParticipantList, "d",participantId)
         threadRead.start()
         threadRead.join()
+        return True
     except Exception,e:
         logging.exception(str(e))
         return False
 #############################################################################################
 
 def deleteParticipantFromCache(participantId):
-    logging.info('deleteParticipantFromCache()')
+    global activeParticipantInformationCache
+    logging.info('deleteParticipantFromCache() Active calls: [' + str(len(activeParticipantInformationCache)) + '] a call will be deleted: ' + participantId )
     for participant in activeParticipantInformationCache:
         call = processParticipantInformation(participant)
+        print call['participantID']
         if call['participantID'] == participantId:
             activeParticipantInformationCache.remove(participant)
+            logging.info('deleteParticipantFromCache() Participant deleted from cached: ' + participantId)
+            logging.info('deleteParticipantFromCache() Active calls: [' + str(len(activeParticipantInformationCache)) + ']' )
             return True
-
+    logging.error('deleteParticipantFromCache() Participant was not deleted from cached')
     return False
 
 def deleteParticipantHelper(participantId):
+    logging.info('deleteParticipantHelper()')
     if deleteParticipantFromFile(participantId) and deleteParticipantFromCache(participantId):
         return True
     else:
@@ -555,12 +567,23 @@ def callGenerator(maxCalls):
 
 
 #############################################################################################
-def getActiveCallsParticipantId(participantId):
+def getActiveCallsbyParticipantId(participantId):
     logging.info('getActiveCallsParticipantId() total number of active calls: ' + str(len(activeParticipantInformationCache)))
     for participant in activeParticipantInformationCache:
         call = processParticipantInformation(participant)
         if call['participantID'] == participantId:
             return True
+    return False
+
+#############################################################################################
+# calls is a List of Dictionary, in this case ActiveParticpantInformationCache
+# Verify each call and see if participant exist, if not return False
+
+def checkIfParticipantIdExistInMemory(calls,participantID):
+    for call in calls:
+         if participantID in call:
+             logging.info('checkIfParticipantIdExistInMemory() Participant already exists in cache')
+             return True
     return False
 
 #############################################################################################
@@ -681,8 +704,10 @@ def validateConferenceData(fileRecords):
 
 def updateParticipantInformation(active,participantID, conferenceID, accessLevel, displayName, connectionState,calls,addresses):
      if castRecordElement(participantID) == participantFieldDataType[1] and castRecordElement(conferenceID) == participantFieldDataType[2] and castRecordElement(displayName) == participantFieldDataType[4]:
-        activeParticipantInformationCache.append([participantID, conferenceID, accessLevel,displayName,connectionState,calls,addresses])
-        logging.info("updateParticipantInformation() Valid record inserted into cached: " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
+        # TODO if participant already exists do not insert
+        if not checkIfParticipantIdExistInMemory(activeParticipantInformationCache,participantID):
+            activeParticipantInformationCache.append([participantID, conferenceID, accessLevel,displayName,connectionState,calls,addresses])
+            logging.info("updateParticipantInformation() Valid record inserted into cached: " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
         return True
      else:
         logging.error("updateParticipantInformation() Invalid record " + str(participantID) + " " + str(conferenceID) + " " + str(displayName))
@@ -977,7 +1002,6 @@ def createConferenceByConferenceName(msg):
     conferenceInformationCache.append({conferenceID, conferenceGUID, numericID})
     return xmlResponse
 
-
 #############################################################################################
 
 #Find conference record based on conferenceGUID
@@ -1058,7 +1082,6 @@ def validateNewRecord(conferenceID, conferenceGUID, numericID):
                 return -3
     return 0
 
-
 #############################################################################################
 
 def createXmlResponse(args):
@@ -1068,7 +1091,6 @@ def createXmlResponse(args):
                    'numericID': 8100, 'registerWithGatekeeper': False, 'registerWithSIPRegistrar': False,
                    'h239ContributionEnabled': False, 'pin': ''}
     return xmlResponse
-
 
 ###########################################################################################
 # System utilities
@@ -1083,18 +1105,15 @@ def convertStr(s):
         ret = float(s)
     return ret
 
-
 # Generate random String
 def random_string(length):
     chars = set(string.ascii_lowercase + string.digits)
     char_gen = (c for c in imap(urandom, repeat(1)) if c in chars)
     return ''.join(islice(char_gen, None, length))
 
-
 # Logging info
 def logInfo(msg):
     logging.info(msg)
-
 
 # Cast value from string
 def boolify(s):
@@ -1104,12 +1123,10 @@ def boolify(s):
         return False
     raise ValueError('Not Boolean Value!')
 
-
 def noneify(s):
     ''' for None type'''
     if s == 'None': return None
     raise ValueError('Not None Value!')
-
 
 def listify(s):
     '''will convert a string representation of a list
@@ -1120,7 +1137,6 @@ def listify(s):
     #this cover everything?
     if "," not in s:
         raise ValueError('Not a List')
-
 
     #derive the type of the variable
     loStrings = s.split(',')
@@ -1225,26 +1241,20 @@ def conference_enumerate(msg):
                    'h239ContributionEnabled': False, 'pin': ''}
     return xmlResponse
 
-
 def conference_invite(msg):
     return msg
-
 
 def conference_senddtmf(msg):
     return msg
 
-
 def conference_sendmessage(msg):
     return msg
-
 
 def conference_sendwarning(msg):
     return msg
 
-
 def conference_set(msg):
     return msg
-
 
 def conference_status(msg):
     # 	Verify conferenceGUID status
@@ -1263,16 +1273,13 @@ def conference_status(msg):
         else:
             return fault_code(systemErrors[4], 4)
 
-
 def conference_uninvite(msg):
     return msg
-
 
 def fault_code(string, code):
     xmlResponse = {'faultCode': code, 'faultString': string}
     logInfo(xmlResponse)
     return xmlResponse
-
 
 # Flex Mode methods
 def feedbackReceiver_configure(msg):
@@ -1400,12 +1407,13 @@ def processParticipantInformation(participant):
     participantProcessed['addresses'] = addresses
 
     logging.info('processParticipantInformation() ' + str(participantProcessed['participantID']))
+    #return Dict
     return participantProcessed
 
 
 def getActiveParticipantList():
     try:
-        logging.info("readActiveParticipantsFromFile: " + systemParticipantList)
+        logging.info("getActiveParticipantList() : " + systemParticipantList)
         participantsProcessed = []
 
         threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
@@ -1416,10 +1424,11 @@ def getActiveParticipantList():
             for participant in activeParticipantInformationCache:
                 participantsProcessed.append(processParticipantInformation(participant))
         else:
-            logging.error("buildActiveParticipantList() No active participants obtained from cached")
+            logging.error("getActiveParticipantList() No active participants obtained from cached")
 
-        logging.info("buildActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
+        logging.info("getActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
         if len(participantsProcessed)>=1:
+            #return Arr
             return participantsProcessed
         else:
             return None
@@ -1493,7 +1502,7 @@ def flex_participant_setMute(msg):
             if element == 'participantID':
                 logging.info('participantId param found')
                 participantReq = params.get('participantID')
-                if getActiveCallsParticipantId(participantReq):
+                if getActiveCallsbyParticipantId(participantReq):
                     logging.info('participantId is active')
                     participantFound = True
             if element == 'audioRxMute':
@@ -1535,7 +1544,7 @@ def flex_participant_sendUserMessage(msg):
             if element == 'participantID':
                 logging.info('participantId param found')
                 participantReq = params.get('participantID')
-                if getActiveCallsParticipantId(participantReq):
+                if getActiveCallsbyParticipantId(participantReq):
                     logging.info('participantId is active')
                     participantFound = True
         if (participantFound):
@@ -1573,7 +1582,7 @@ def flex_participant_destroy(msg):
                     participantFound = True
                 else:
                     logging.error('Error deleting participant')
-                    
+
         if (participantFound):
             xmlResponse = {'status': 'operation succesful'}
             return xmlResponse
@@ -1609,8 +1618,8 @@ server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure
 server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
 server.register_function(flex_participant_setMute, 'flex.participant.setMute')
 server.register_function(flex_participant_sendUserMessage, 'flex.participant.sendUserMessage')
+server.register_function(flex_participant_destroy, 'flex.participant.destroy')
 server.register_instance(Methods())
-
 
 # Main function
 def telepresenceServer():
