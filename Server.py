@@ -35,6 +35,7 @@ systemMode = -1
 callsGenerated = []
 feedBackServerList = {}
 feedbackReceiverIndex = []
+staticSUTEndpoints = []
 
 # Configuration parameters
 configParameters = [
@@ -593,6 +594,27 @@ def getConferenceGUID():
 
 
 #############################################################################################
+def getStaticSUTEndPoints():
+    logging.info("Reading CTS1000 and CTS3000")
+    print "Obtaining CTS1000 and CTS3000 endpoint information..."
+    global staticSUTEndpoints
+    cts1000 = getSystemMode("cts1000")
+    cts3000 = getSystemMode("cts3000")
+    if cts1000:
+        logging.info("CTS 1000 address is: " + str(cts1000))
+        staticSUTEndpoints.append(cts1000)
+    else:
+        logging.warning("CTS 1000 address is not defined")
+
+    if cts3000:
+        logging.info("CTS 3000 address is: " + str(cts3000))
+        staticSUTEndpoints.append(cts3000)
+    else:
+        logging.warning("CTS 3000 address is not defined")
+
+    print staticSUTEndpoints
+
+#############################################################################################
 
 def startCallServer():
     logging.info("Starting call emulator services...")
@@ -601,7 +623,9 @@ def startCallServer():
         logging.info('Call emulator started succesfully')
         print "Call emulator started succesfully."
         callGenerator(getSystemMode("maxCalls"))
+        getStaticSUTEndPoints()
         insertActiveCallsToFile()
+
 
     else:
         logging.error('Call emulator service failed to start')
@@ -1349,6 +1373,31 @@ def getCookieValue():
     #Generate random string:
     return '265;0;' + random_string(3)
 
+def getActiveParticipantList():
+    try:
+        logging.info("getActiveParticipantList() : " + systemParticipantList)
+        participantsProcessed = []
+
+        threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
+        threadRead.start()
+        threadRead.join()
+
+        if activeParticipantInformationCache:
+            for participant in activeParticipantInformationCache:
+                participantsProcessed.append(processParticipantInformation(participant))
+        else:
+            logging.error("getActiveParticipantList() No active participants obtained from cached")
+
+        logging.info("getActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
+        if len(participantsProcessed)>=1:
+            #return Arr
+            return participantsProcessed
+        else:
+            return None
+    except Exception,e:
+        print "Exception found" + str(e)
+        logging.exception("Exception found " + str(e))
+
 def processParticipantInformation(participant):
     """
     Process participant information from file, assuming participant is already processed
@@ -1410,33 +1459,6 @@ def processParticipantInformation(participant):
     #return Dict
     return participantProcessed
 
-
-def getActiveParticipantList():
-    try:
-        logging.info("getActiveParticipantList() : " + systemParticipantList)
-        participantsProcessed = []
-
-        threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
-        threadRead.start()
-        threadRead.join()
-
-        if activeParticipantInformationCache:
-            for participant in activeParticipantInformationCache:
-                participantsProcessed.append(processParticipantInformation(participant))
-        else:
-            logging.error("getActiveParticipantList() No active participants obtained from cached")
-
-        logging.info("getActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
-        if len(participantsProcessed)>=1:
-            #return Arr
-            return participantsProcessed
-        else:
-            return None
-    except Exception,e:
-        print "Exception found" + str(e)
-        logging.exception("Exception found " + str(e))
-
-
 def flex_participant_enumerate(msg):
     print('flex_participant_enumerate() API flex.participant.enumerate')
     logInfo("flex_participant_enumerate() API flex.participant.enumerate")
@@ -1489,7 +1511,6 @@ def flex_participant_setMute(msg):
     params = xml_RequestHandler(msg)
     xmlResponse = []
     participantFound = False
-
 
     if (params == 34):
         return fault_code(systemErrors[34], 34)

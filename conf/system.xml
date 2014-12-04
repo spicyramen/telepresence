@@ -7,7 +7,9 @@
 <buildVersion>13.0(1.48)</buildVersion>
 <mode>flex</mode>
 <callControl>True</callControl>
-<maxCalls>2</maxCalls>
+<maxCalls>10</maxCalls>
+<cts1000>17132001001</cts1000>
+<cts3000>17132001002</cts3000>
 <conferenceGUID>8ca0c690-dd82-11e2-84f9-000d7c112b10</conferenceGUID>
 <emulatePacketLoss>True</emulatePacketLoss>
 <hostName>dt12b7</hostName>
@@ -21,8 +23,8 @@
 <sipRegistrarAddress>mainvcs.test.lal</sipRegistrarAddress>
 <sipRegistrarDomain>test.lal</sipRegistrarDomain>
 <sipTrunkUsage>No</sipTrunkUsage>
-<sipTrunkAddress/>
-<sipTrunkDomain/>
+<sipTrunkAddress></sipTrunkAddress>
+<sipTrunkDomain></sipTrunkDomain>
 <isMaster>Yes</isMaster>
 <clusterType>unclustered</clusterType>
 <totalVideoPorts>48</totalVideoPorts>

@@ -23,7 +23,7 @@ def show_version():
   print xmlRpcClient.show_version()
 
 def flex_participant_setMute():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'o8q9qzxo-5wwq-dwl1-evcc-h2bz1bwe2dwa'}
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'cey7g1gf-to4g-376a-8pql-7y50nf0mwaj0'}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'flex.participant.setMute',encoding='UTF-8')
     response = requests.request( 'POST', url,
@@ -39,7 +39,7 @@ def flex_participant_setMute():
   	    return -1
 
 def flex_participant_destroy():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'o8q9qzxo-5wwq-dwl1-evcc-h2bz1bwe2dwa'}
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'cey7g1gf-to4g-376a-8pql-7y50nf0mwaj0'}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'flex.participant.destroy',encoding='UTF-8')
     response = requests.request( 'POST', url,
@@ -169,12 +169,13 @@ def list_methods():
 
 try:
     #ping("REQUEST")
-    show_version()
-    #feedbackReceiver_configure('http://12.120.192.135:9311/RPC2')
-    flex_participant_enumerate()
-    flex_participant_setMute()
-    flex_participant_destroy()
-    flex_participant_enumerate()
+    for x in range(1,1000,1):
+        show_version()
+        #feedbackReceiver_configure('http://12.120.192.135:9311/RPC2')
+        flex_participant_enumerate()
+        #flex_participant_setMute()
+        #flex_participant_destroy()
+        #flex_participant_enumerate()
     #conference_create("AT&T TelePresence")
     #conference_enumerate()
     #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")
