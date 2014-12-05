@@ -543,7 +543,27 @@ def callGenerator(maxCalls):
     global callsGenerated
     logging.info('callGenerator() emulating Calls: ' + maxCalls)
     maxCalls = convertStr(maxCalls)
+    staticEndpoints = len(staticSUTEndpoints)
+
     if maxCalls > 0:
+        logging.info('callGenerator() staticSUTEndpoints')
+        if staticEndpoints>0:
+            for staticEndpoint in staticSUTEndpoints:
+                active = True
+                participantId = generateNewParticipantId()
+                conferenceId = getConferenceGUID()
+                accessLevel = 'chair'
+                displayName = 'endpoint-' + str(staticEndpoint)
+                connectionState = 'connected'
+                calls = "callID:" + participantId + " incoming: True address: " + str(staticEndpoint)
+                addresses = "URI: " + str(staticEndpoint)
+                logging.info('Creating call (' + str(staticEndpoint) + ')')
+                newCall = Call(active,participantId, conferenceId, accessLevel, displayName, connectionState, calls,
+                               addresses)
+                # Insert new calls
+                callsGenerated.append(newCall)
+                logging.info('callGenerator() static call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
+
         logging.info('callGenerator() Creating calls...')
         for call in range(1, maxCalls + 1):
             #def __init__(self, participantId, active, conferenceId, accessLevel, displayName, connectionState, calls,addresses):
@@ -563,6 +583,9 @@ def callGenerator(maxCalls):
             # Insert new calls
             callsGenerated.append(newCall)
             logging.info('callGenerator() call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
+    else:
+        logging.error('callGenerator() Invalid number of calls configured')
+        return -1
 
     logging.info('callGenerator() Calls inserted: [' + str(len(callsGenerated)) + ']')
 
@@ -622,8 +645,8 @@ def startCallServer():
     if getSystemMode("callControl") == 'True':
         logging.info('Call emulator started succesfully')
         print "Call emulator started succesfully."
-        callGenerator(getSystemMode("maxCalls"))
         getStaticSUTEndPoints()
+        callGenerator(getSystemMode("maxCalls"))
         insertActiveCallsToFile()
 
 
@@ -1544,7 +1567,7 @@ def flex_participant_setMute(msg):
 
 def flex_participant_sendUserMessage(msg):
     print "flex_participant_sendUserMessage() API flex.participant.sendUserMessage"
-    logInfo("flex_particflex_participant_sendUserMessageipant_setMute() API flex.participant.sendUserMessage")
+    logInfo("flex_participant_sendUserMessage() API flex.participant.sendUserMessage")
     # Optional parameters:
 
     # Mandatory
@@ -1611,6 +1634,72 @@ def flex_participant_destroy(msg):
             logging.error('flex_participant_destroy() participantID not found')
             return fault_code(systemErrors[5], 5)
 
+def flex_participant_modify(msg):
+    print "flex_participant_modify() API flex.participant.modify"
+    logInfo("flex_participant_modify() API flex.participant.modify")
+    # Optional parameters:
+
+    # Mandatory
+    # participantId
+    params = xml_RequestHandler(msg)
+    xmlResponse = []
+    participantFound = False
+
+
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'participantID':
+                logging.info('participantId param found')
+                participantReq = params.get('participantID')
+                if getActiveCallsbyParticipantId(participantReq):
+                    logging.info('participantId is active')
+                    participantFound = True
+        if (participantFound):
+            xmlResponse = {'status': 'operation succesful'}
+            return xmlResponse
+        else:
+            logging.error('flex_participant_modify() participantID not found')
+            return fault_code(systemErrors[5], 5)
+
+def flex_participant_requestDiagnostics(msg):
+    print "flex_participant_requestDiagnostics() API flex.participant.modify"
+    logInfo("flex_participant_requestDiagnostics() API flex.participant.modify")
+    # Optional parameters:
+
+    # Mandatory
+    # participantId
+    params = xml_RequestHandler(msg)
+    xmlResponse = []
+    participantFound = False
+
+
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'participantID':
+                logging.info('participantId param found')
+                participantReq = params.get('participantID')
+                if getActiveCallsbyParticipantId(participantReq):
+                    logging.info('participantId is active')
+                    participantFound = True
+        if (participantFound):
+            xmlResponse = {'status': 'operation succesful'}
+            return xmlResponse
+        else:
+            logging.error('flex_participant_modify() participantID not found')
+            return fault_code(systemErrors[5], 5)
+
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
     def show_version(self):
@@ -1640,6 +1729,7 @@ server.register_function(flex_participant_enumerate, 'flex.participant.enumerate
 server.register_function(flex_participant_setMute, 'flex.participant.setMute')
 server.register_function(flex_participant_sendUserMessage, 'flex.participant.sendUserMessage')
 server.register_function(flex_participant_destroy, 'flex.participant.destroy')
+server.register_function(flex_participant_modify, 'flex.participant.modify')
 server.register_instance(Methods())
 
 # Main function
