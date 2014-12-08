@@ -8,7 +8,7 @@
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
 from threading import Thread
-from multiprocessing import Process
+from multiprocessing import Process,Queue
 from os import urandom
 from random import randrange
 from itertools import islice, imap, repeat
@@ -16,15 +16,16 @@ from types import *
 from urlparse import urlparse
 from random import randint
 import time, string, csv, threading, logging, copy, re,os
+import xmlrpclib
+import requests
 
 # TODO: Add configuration file for settings via import
 # TODO: Refactoring
 # TODO: Add SIP stack
 
-
 # #########################################################################
 hostname = "127.0.0.1"
-port = 8082
+port = 8080
 version = '4.0(1.57)'
 systemUserName = "sutapi"
 systemPassWord = "pwd22ATS!"
@@ -34,8 +35,11 @@ systemParticipantList = 'conf/participants.conf'
 systemMode = -1
 callsGenerated = []
 feedBackServerList = {}
+feedBackServerListQueue = Queue(100)    # 100 is Max Feedback receivers instances
 feedbackReceiverIndex = []
 staticSUTEndpoints = []
+
+
 
 # Configuration parameters
 configParameters = [
@@ -187,7 +191,7 @@ class Call():
         self.connectionState = connectionState
         self.calls = calls
         self.addresses = addresses
-        print('Call() instance created participantID: %s' % self.participantID )
+        print('Call() _init_ instance created participantID: %s' % self.participantID )
 
     def insertCall(self):
         # We insert the call so we can assume format is correct
@@ -247,10 +251,16 @@ class Observer():
 
 # Singleton
 class feedBackServer():
-    def __init__(self, uri, port, active):
+
+    def __init__(self, uri=None, port=None, active=None):
         self.uri = uri
         self.port = port
         self.active = active
+        self.notifier = feedBackServerNotifier(self.uri,self.port,self.active)
+        # Create object to send Keepalive
+
+    def getKeepAliveInstance(self):
+        return self.notifier
 
     def getPort(self):
         return self.port
@@ -258,9 +268,40 @@ class feedBackServer():
     def setActiveStatus(self, status):
         self.active = status
 
+###########################################################################################
+
 class feedBackServerNotifier():
-    def notify(self):
-        logging.info('Notifying feedback Servers')
+    def __init__(self, uri, port, active):
+        self.uri = uri
+        self.port = port
+        self.active = active
+
+    def keepAlive(self,option):
+        events = []
+        logging.info('feedBackServerNotifier.keepAlive() Notifying feedback Servers')
+        if option == 'configureAck' or option == 'flexAlive':
+            print 'feedBackServerNotifier.keepAlive(): ' + option
+            logging.info('feedBackServerNotifier.keepAlive(): ' + option)
+            events.append(option)
+        else:
+            logging.error('feedBackServerNotifier.keepAlive() Invalid option')
+            events.append('keepAlive')
+
+        parameters = {'sourceIdentifier': 'TEMPSRCID','events': events}
+        params = tuple([parameters])
+        xmlrpccall = xmlrpclib.dumps(params,'eventNotification',encoding='UTF-8')
+        response = requests.request( 'POST', self.uri,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+        if response.status_code == 200:
+            result = xmlrpclib.loads( response.content, )[ 0 ]
+            events = []
+        else:
+  	        print '(feedBackServerNotifier) Error'
+  	        return -1
+
 
 ###########################################################################################
 # Handle XMLRequests and client login
@@ -390,8 +431,6 @@ class ReadWriteFileThread(threading.Thread):
             fileLock.release()
 
 
-
-
 ###########################################################################################
 # System configuration
 ###########################################################################################
@@ -430,6 +469,7 @@ def startXmlRpc():
     print "API Version:  " + version
     try:
         logging.info("XML-RPC Server initialized...")
+        print "XML-RPC Server initialized..."
         threading.Thread(target=server.serve_forever()).start()
     except KeyboardInterrupt:
         logging.info("Cisco TelePresence Server 8710 Emulator stopping xml service....")
@@ -515,6 +555,7 @@ def deleteParticipantFromFile(participantId):
     except Exception,e:
         logging.exception(str(e))
         return False
+
 #############################################################################################
 
 def deleteParticipantFromCache(participantId):
@@ -537,6 +578,7 @@ def deleteParticipantHelper(participantId):
         return True
     else:
         return False
+
 #############################################################################################
 
 def callGenerator(maxCalls):
@@ -619,7 +661,7 @@ def getConferenceGUID():
 #############################################################################################
 def getStaticSUTEndPoints():
     logging.info("Reading CTS1000 and CTS3000")
-    print "Obtaining CTS1000 and CTS3000 endpoint information..."
+    print "getStaticSUTEndPoints() Obtaining CTS1000 and CTS3000 endpoint information..."
     global staticSUTEndpoints
     cts1000 = getSystemMode("cts1000")
     cts3000 = getSystemMode("cts3000")
@@ -635,7 +677,7 @@ def getStaticSUTEndPoints():
     else:
         logging.warning("CTS 3000 address is not defined")
 
-    print staticSUTEndpoints
+    print "getStaticSUTEndPoints() Endpoint information: " + str(staticSUTEndpoints)
 
 #############################################################################################
 
@@ -648,8 +690,6 @@ def startCallServer():
         getStaticSUTEndPoints()
         callGenerator(getSystemMode("maxCalls"))
         insertActiveCallsToFile()
-
-
     else:
         logging.error('Call emulator service failed to start')
         print "Call emulator service failed to start'"
@@ -748,7 +788,6 @@ def validateConferenceData(fileRecords):
 
 #############################################################################################
 
-
 def updateParticipantInformation(active,participantID, conferenceID, accessLevel, displayName, connectionState,calls,addresses):
      if castRecordElement(participantID) == participantFieldDataType[1] and castRecordElement(conferenceID) == participantFieldDataType[2] and castRecordElement(displayName) == participantFieldDataType[4]:
         # TODO if participant already exists do not insert
@@ -761,7 +800,6 @@ def updateParticipantInformation(active,participantID, conferenceID, accessLevel
         return False
 
 #############################################################################################
-
 
 #Verify credentials are correct
 # TODO MD5 checksum + SALT
@@ -823,7 +861,6 @@ def readActiveParticipants(fileRecords):
         else:
             logging.warning("readActiveParticipants() Invalid Record: " + call)
             return -1
-
 
 
 # Verify records in file
@@ -932,8 +969,6 @@ def validateDataFromFile(fileRecords, type, check):
     else:
         return -1
 
-
-
 #############################################################################################
 
 #Verifies authentication and returns remaining parameters specified in structure
@@ -968,7 +1003,6 @@ def updateConfigurationInfo():
     threadRead = ReadWriteFileThread("Thread-Read", 1, systemConfigurationFile, "r", "")
     threadRead.start()
     threadRead.join()
-
 
 #############################################################################################
 
@@ -1274,7 +1308,6 @@ def conference_create(msg):
 def conference_delete(msg):
     return msg
 
-
 def conference_enumerate(msg):
     # 	Optional params could be:
     #					enumerateID  integer
@@ -1334,6 +1367,8 @@ def feedbackReceiver_configure(msg):
     logInfo("feedbackReceiver() API feedbackReceiver.configure")
     params = xml_RequestHandler(msg)
     receiverURI = ''
+    global feedBackServerList
+    global feedBackServerListQueue
 
     if (params == 34):
         logging.error('feedbackReceiver() xml_RequestHandler error')
@@ -1374,9 +1409,23 @@ def feedbackReceiver_configure(msg):
 
     # Create new Feedback Receiver object
     feedbackServerInstance = feedBackServer(receiverURI, port, True)
-    # Check Object does not exist in FeedBack receiver
+
+    """ Check Object does not exist in FeedBack receiver List"""
+
     if not feedBackServerList.has_key(receiverIndex):
+        # Add shared access object
+        feedBackServerListQueue.put(feedbackServerInstance)
+        # Add feedbackServerInstance into List
         feedBackServerList[receiverIndex] = feedbackServerInstance
+        logging.info('feedbackReceiver() feebackReceiver added ' + str(receiverIndex))
+        print 'feedbackReceiver() feebackReceiver added ' + str(receiverIndex)
+
+        # Ack feedBackReceiver
+        feedbackServerInstance.getKeepAliveInstance().keepAlive('configureAck')
+        feedbackServerInstance.getKeepAliveInstance().keepAlive('flexAlive')
+
+        print 'feedbackReceiver() Current feedbackReceivers: ' + str(len(feedBackServerList))
+        print 'feedbackReceiver() Current feedbackReceivers shared acess: ' + str(feedBackServerListQueue.__sizeof__())
     else:
         # TODO allocate an index not in use, do it more nicely
         return fault_code(systemErrors[6], 6)
@@ -1389,8 +1438,31 @@ def feedbackReceiver_configure(msg):
         del feedbackReceiverIndex[0]
     except:
         pass
-
     return xmlResponse
+
+
+def keepAliveController():
+    print 'Initialize keepAliveController()'
+    try:
+        print 'keepAliveController() Init'
+        print 'keepAliveController() Size: ' + str(feedBackServerListQueue.__sizeof__())
+
+        while True:
+            time.sleep(10.0)
+            print 'keepAliveController() Processing feedbackReceivers...'
+            feedBackServer = feedBackServerListQueue.get()
+            if feedBackServer is None:
+                feedBackServerListQueue.task_done()
+                break
+
+            feedBackServer.getKeepAliveInstance().keepAlive('flexAlive')
+            print 'keepAliveController() No feedBack receiver configured'
+            
+    except KeyboardInterrupt:
+        print 'keepAliveController() Exiting...'
+    except Exception, e:
+        print 'keepAliveController() Exception' + str(e)
+
 
 def getCookieValue():
     #Generate random string:
@@ -1453,11 +1525,11 @@ def processParticipantInformation(participant):
 
     logging.info('processParticipantInformation()')
     logging.info('----------------------------------------------')
-    print "----------------------------------------------"
-    print "participantID: " + participant[0]
-    logging.info('participantID: ' + participant[0])
-    print "conferenceId: " + participant[1]
-    logging.info('conferenceId: ' + participant[1])
+    #print "----------------------------------------------"
+    #print "participantID: " + participant[0]
+    #logging.info('processParticipantInformation participantID: ' + participant[0])
+    #print "conferenceId: " + participant[1]
+    #logging.info('conferenceId: ' + participant[1])
 
     #print "accessLevel: " + participant[2]
     #print "displayName: " + participant[3]
@@ -1645,7 +1717,6 @@ def flex_participant_modify(msg):
     xmlResponse = []
     participantFound = False
 
-
     if (params == 34):
         return fault_code(systemErrors[34], 34)
     elif (params == 101):
@@ -1678,7 +1749,6 @@ def flex_participant_requestDiagnostics(msg):
     xmlResponse = []
     participantFound = False
 
-
     if (params == 34):
         return fault_code(systemErrors[34], 34)
     elif (params == 101):
@@ -1710,6 +1780,14 @@ class Methods:
 # Create server
 server = SimpleXMLRPCServer((hostname, port), requestHandler=XmlRequestHandler, logRequests=True)
 server.register_function(ping_function, 'ping')
+# flexmode
+server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
+server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
+server.register_function(flex_participant_setMute, 'flex.participant.setMute')
+server.register_function(flex_participant_sendUserMessage, 'flex.participant.sendUserMessage')
+server.register_function(flex_participant_destroy, 'flex.participant.destroy')
+server.register_function(flex_participant_modify, 'flex.participant.modify')
+server.register_instance(Methods())
 
 """if systemMode==0:
         server.register_function(conference_create, 'conference.create')
@@ -1723,15 +1801,6 @@ server.register_function(ping_function, 'ping')
         server.register_function(conference_status, 'conference.status')
         server.register_function(conference_uninvite, 'conference.uninvite')"""
 
-# flexmode
-server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
-server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
-server.register_function(flex_participant_setMute, 'flex.participant.setMute')
-server.register_function(flex_participant_sendUserMessage, 'flex.participant.sendUserMessage')
-server.register_function(flex_participant_destroy, 'flex.participant.destroy')
-server.register_function(flex_participant_modify, 'flex.participant.modify')
-server.register_instance(Methods())
-
 # Main function
 def telepresenceServer():
     logging.basicConfig(filename='logs/telepresence.log', level=logging.INFO,
@@ -1740,22 +1809,31 @@ def telepresenceServer():
     logging.info("-----------------------Initializing server------------------------")
     print "-----------------------Initializing server------------------------"
     try:
-        """start"""
+        """initialize system"""
         initializeSystem()
         feedbackReceiverInitialize()
+
         xml = Process(target=startXmlRpc)
         cc = Process(target=startCallServer)
-        """Start xmlServer and CallServer"""
+        keepaliveInit = Process(target=keepAliveController)
+
+        """Start xmlServer and callServer"""
         xml.start()
         cc.start()
+        keepaliveInit.start()
+
         xml.join()
         cc.join()
+        keepaliveInit.join()
+
     except KeyboardInterrupt:
         print "Cisco TelePresence Server 8710 Emulator stopping...."
         logging.info("Cisco TelePresence Server 8710 Emulator stopping....")
     except Exception, e:
         print "Exception found" + str(e)
         logging.exception("Exception found " + str(e))
+
+
 
 if __name__ == '__main__':
     telepresenceServer()

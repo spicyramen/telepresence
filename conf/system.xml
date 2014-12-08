@@ -7,7 +7,7 @@
 <buildVersion>13.0(1.48)</buildVersion>
 <mode>flex</mode>
 <callControl>True</callControl>
-<maxCalls>10</maxCalls>
+<maxCalls>3</maxCalls>
 <cts1000>17132001001</cts1000>
 <cts3000>17132001002</cts3000>
 <conferenceGUID>8ca0c690-dd82-11e2-84f9-000d7c112b10</conferenceGUID>
