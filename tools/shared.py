@@ -21,10 +21,11 @@ def modify(n, x, s, A, L):
     x.value **= 2
     s.value = s.value.upper()
     while True:
-        time.sleep(10.0)
-        print 'Wakeup'
+        time.sleep(3.0)
+        print 'Wakeup - Size: ' + str(counter.__sizeof__())
         value = counter.get()
         if value is None:
+            print 'None'
             counter.task_done()
             break
         else:

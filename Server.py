@@ -8,7 +8,7 @@
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
 from threading import Thread
-from multiprocessing import Process,Queue
+from multiprocessing import Process,Queue,JoinableQueue
 from os import urandom
 from random import randrange
 from itertools import islice, imap, repeat
@@ -35,7 +35,7 @@ systemParticipantList = 'conf/participants.conf'
 systemMode = -1
 callsGenerated = []
 feedBackServerList = {}
-feedBackServerListQueue = Queue(100)    # 100 is Max Feedback receivers instances
+feedBackServerListQueue = JoinableQueue(100)    # 100 is Max Feedback receivers instances
 feedbackReceiverIndex = []
 staticSUTEndpoints = []
 
@@ -267,6 +267,9 @@ class feedBackServer():
 
     def setActiveStatus(self, status):
         self.active = status
+
+    def __str__(self):
+        return str(self.uri) + str(self.port)
 
 ###########################################################################################
 
@@ -1409,6 +1412,7 @@ def feedbackReceiver_configure(msg):
 
     # Create new Feedback Receiver object
     feedbackServerInstance = feedBackServer(receiverURI, port, True)
+    print feedbackServerInstance
 
     """ Check Object does not exist in FeedBack receiver List"""
 
@@ -1442,6 +1446,7 @@ def feedbackReceiver_configure(msg):
 
 
 def keepAliveController():
+    global feedBackServerListQueue
     print 'Initialize keepAliveController()'
     try:
         print 'keepAliveController() Init'
@@ -1450,14 +1455,18 @@ def keepAliveController():
         while True:
             time.sleep(10.0)
             print 'keepAliveController() Processing feedbackReceivers...'
-            feedBackServer = feedBackServerListQueue.get()
-            if feedBackServer is None:
+            feedBackServerElement = feedBackServerListQueue.get()
+            if feedBackServerElement is None:
+                print 'keepAliveController() Is empty'
                 feedBackServerListQueue.task_done()
                 break
+            else:
+                print feedBackServerElement
 
-            feedBackServer.getKeepAliveInstance().keepAlive('flexAlive')
-            print 'keepAliveController() No feedBack receiver configured'
-            
+            feedBackServerElement.getKeepAliveInstance().keepAlive('flexAlive')
+            print 'keepAliveController() FeedBack receiver processed'
+            feedBackServerListQueue.put(feedBackServerElement)
+
     except KeyboardInterrupt:
         print 'keepAliveController() Exiting...'
     except Exception, e:
