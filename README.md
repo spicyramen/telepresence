@@ -11,7 +11,6 @@
 ####6. flex.participant.destroy
 ####7. feedback receiver, configure and notifications
 
-
 ### xmlRpcServer   - Handles API calls
 ### callServer     - Emulate calls
 ### feedbackServer - Handles Feedback requests
