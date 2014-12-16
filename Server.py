@@ -40,7 +40,6 @@ feedbackReceiverIndex = []
 staticSUTEndpoints = []
 
 
-
 # Configuration parameters
 configParameters = [
     'portsContentFree',
@@ -269,7 +268,7 @@ class feedBackServer():
         self.active = status
 
     def __str__(self):
-        return str(self.uri) + str(self.port)
+        return str(self.uri)
 
 ###########################################################################################
 
@@ -636,6 +635,7 @@ def callGenerator(maxCalls):
 
 
 #############################################################################################
+
 def getActiveCallsbyParticipantId(participantId):
     logging.info('getActiveCallsParticipantId() total number of active calls: ' + str(len(activeParticipantInformationCache)))
     for participant in activeParticipantInformationCache:
@@ -662,7 +662,9 @@ def getConferenceGUID():
 
 
 #############################################################################################
+
 def getStaticSUTEndPoints():
+
     logging.info("Reading CTS1000 and CTS3000")
     print "getStaticSUTEndPoints() Obtaining CTS1000 and CTS3000 endpoint information..."
     global staticSUTEndpoints
@@ -1364,6 +1366,8 @@ def fault_code(string, code):
     logInfo(xmlResponse)
     return xmlResponse
 
+################ Handle Feedback Reciever configuration ################
+
 # Flex Mode methods
 def feedbackReceiver_configure(msg):
     print("feedbackReceiver() API feedbackReceiver.configure")
@@ -1444,9 +1448,10 @@ def feedbackReceiver_configure(msg):
         pass
     return xmlResponse
 
+################ Manage Feedback Receiver requests ################
 
 def keepAliveController():
-    global feedBackServerListQueue
+    #global feedBackServerListQueue
     print 'Initialize keepAliveController()'
     try:
         print 'keepAliveController() Init'
@@ -1461,10 +1466,10 @@ def keepAliveController():
                 feedBackServerListQueue.task_done()
                 break
             else:
-                print feedBackServerElement
+                print 'keepAliveController() FeedBack receiver keepalive sent to: ' + str(feedBackServerElement)
 
             feedBackServerElement.getKeepAliveInstance().keepAlive('flexAlive')
-            print 'keepAliveController() FeedBack receiver processed'
+            #Add back object so we can continue to process the KeepAlives
             feedBackServerListQueue.put(feedBackServerElement)
 
     except KeyboardInterrupt:
@@ -1472,10 +1477,12 @@ def keepAliveController():
     except Exception, e:
         print 'keepAliveController() Exception' + str(e)
 
+################ Generate random cookies ################
 
 def getCookieValue():
     #Generate random string:
     return '265;0;' + random_string(3)
+
 
 def getActiveParticipantList():
     try:
@@ -1672,6 +1679,12 @@ def flex_participant_sendUserMessage(msg):
                 if getActiveCallsbyParticipantId(participantReq):
                     logging.info('participantId is active')
                     participantFound = True
+            if element == 'message':
+                logging.info('message param found')
+                message = params.get('message')
+                logging.info('flex_participant_sendUserMessage() message: ' + message)
+                print 'flex_participant_sendUserMessage(): ' + message
+
         if (participantFound):
             xmlResponse = {'status': 'operation succesful'}
             return xmlResponse
@@ -1748,8 +1761,8 @@ def flex_participant_modify(msg):
             return fault_code(systemErrors[5], 5)
 
 def flex_participant_requestDiagnostics(msg):
-    print "flex_participant_requestDiagnostics() API flex.participant.modify"
-    logInfo("flex_participant_requestDiagnostics() API flex.participant.modify")
+    print "flex_participant_requestDiagnostics() API flex.participant.requestDiagnostics"
+    logInfo("flex_participant_requestDiagnostics() API flex.participant.requestDiagnostics")
     # Optional parameters:
 
     # Mandatory
@@ -1772,12 +1785,175 @@ def flex_participant_requestDiagnostics(msg):
                 if getActiveCallsbyParticipantId(participantReq):
                     logging.info('participantId is active')
                     participantFound = True
+                    processParticipantDiagnosticResponse(participantReq)
         if (participantFound):
             xmlResponse = {'status': 'operation succesful'}
             return xmlResponse
         else:
             logging.error('flex_participant_modify() participantID not found')
             return fault_code(systemErrors[5], 5)
+
+
+################ Respond to ParticipantDiagnosticRequest ################
+
+def notifyFeedBackReceiverClients(participantId):
+    global feedBackServerList
+    logging.info('notifyFeedBackReceiverClients() elements: ' + str(len(feedBackServerList)))
+    for feedBackServer in feedBackServerList.itervalues():
+        print "notifyFeedBackReceiverClients(): " + str(feedBackServer.uri)
+        if feedBackServer.uri:
+            notifier = Process(target=participantDiagnosticResponseNotifier(feedBackServer.uri,participantId))
+            notifier.start()
+            notifier.join()
+        else:
+            logging.error('notifyFeedBackReceiverClients() Invalid Uri')
+
+################ Respond to ParticipantDiagnosticRequest ################
+
+def processParticipantDiagnosticResponse(participantId):
+
+    if getSystemMode("emulatePacketLoss") == 'True':
+        logging.info('processParticipantDiagnosticResponse() Packet loss will be emulated for each method call')
+        if getActiveCallsbyParticipantId(participantId):
+                    logging.info('participantId is active')
+                    participantFound = True
+                    # Now we send to Feedback Receiver port
+                    notifyFeedBackReceiverClients(participantId)
+        else:
+            logging.warning('processParticipantDiagnosticResponse() Participant not found')
+            return -1
+    else:
+        logging.info('processParticipantDiagnosticResponse() Packet loss is not active')
+
+# GenerateMediaStatistics
+
+def generateMediaStatistics(participantId):
+
+    # Media Arrays
+    audioRx = []
+    audioTx = []
+    videoRx = []
+    videoTx = []
+    auxiliaryAudioRx = []
+    auxiliaryAudioTx = []
+    contentVideoRx = []
+    contentVideoTx = []
+
+    # Contents of Structure
+    audioRxStruct = {}
+    audioTxStruct = {}
+    videoRxStruct = {}
+    videoTxStruct = {}
+    auxiliaryAudioRxStruct = {}
+    auxiliaryAudioTxStruct = {}
+    contentVideoTxStruct = {}
+    contentVideoRxStruct = {}
+
+    # We will populate and increase value for each call. Initial values are stored in a Queue, additional values are added
+    # for each call
+    audioRxStruct['codec'] = 'AAC-LD'
+    audioRxStruct['encrypted'] = True
+    audioRxStruct['channelBitRate'] = 64000
+    audioRxStruct['jitter'] = 4
+    audioRxStruct['energy'] = -25
+    audioRxStruct['packetsReceived'] = 11400
+    audioRxStruct['packetErrors'] = 0
+    audioRxStruct['packetsMissing'] = 0
+    audioRxStruct['framesReceived'] = 11000
+    audioRxStruct['frameErrors'] = 0
+    audioRxStruct['muted'] = True
+    audioRxStruct['clearPathOverhead'] = 0
+    audioRxStruct['clearPathRecovered'] = 0
+
+    audioTxStruct['codec'] = 'AAC-LD'
+    audioTxStruct['encrypted'] = True
+    audioTxStruct['channelBitRate'] = 64000
+    audioTxStruct['packetsSent'] = 11400
+    audioTxStruct['packetsLost'] = 0
+    audioTxStruct['muted'] = False
+    audioTxStruct['clearPathOverhead'] = 0
+    audioTxStruct['clearPathRecovered'] = 0
+
+    videoRxStruct['codec'] = 'H.264'
+    videoRxStruct['height'] = 288
+    videoRxStruct['width'] = 352
+    videoRxStruct['encrypted'] = True
+    videoRxStruct['channelBitRate'] = 4000000
+    videoRxStruct['expectedBitRate'] = 4000000
+    videoRxStruct['expectedBitRateReason'] = "notLimited"
+    videoRxStruct['actualBitRate'] = 143892
+    videoRxStruct['jitter'] = 50
+    videoRxStruct['packetsReceived'] = 2863
+    videoRxStruct['packetErrors'] = 6
+    videoRxStruct['framesReceived'] = 1069
+    videoRxStruct['frameErrors'] = 2
+    videoRxStruct['frameRate'] = 8
+    videoRxStruct['fastUpdateRequestsSent'] = 1
+    videoRxStruct['muted'] = False
+    videoRxStruct['clearPathOverhead'] = 0
+    videoRxStruct['clearPathRecovered'] = 0
+
+    videoTxStruct['codec'] = 'H.264'
+    videoTxStruct['height'] = 720
+    videoTxStruct['width'] = 1280
+    videoTxStruct['encrypted'] = True
+    videoTxStruct['channelBitRate'] = 448000
+    videoTxStruct['configuredBitRate'] = 432000
+    videoTxStruct['configuredBitRateReason'] = 'aggregateBandwidth'
+    videoTxStruct['actualBitRate'] = 356985
+    videoTxStruct['packetsSent'] = 5646
+    videoTxStruct['frameRate'] = 30
+    videoTxStruct['fastUpdateRequestsReceived'] = 0
+    videoTxStruct['muted'] = False
+    videoTxStruct['packetsLost'] = 4
+    videoTxStruct['clearPathOverhead'] = 0
+    videoTxStruct['clearPathRecovered'] = 1
+    videoTxStruct['clearPathLTRF'] = True
+
+    contentVideoRxStruct['codec'] = 'H.263+'
+    contentVideoRxStruct['height'] = 0
+    contentVideoRxStruct['width'] = 0
+    contentVideoRxStruct['encrypted'] = False
+    contentVideoRxStruct['channelBitRate'] = 768000
+    contentVideoRxStruct['expectedBitRate'] = 768000
+    contentVideoRxStruct['expectedBitRateReason'] = 'notLimited'
+    contentVideoRxStruct['actualBitRate'] = 0
+    contentVideoRxStruct['jitter'] = 0
+    contentVideoRxStruct['packetsReceived'] = 0
+    contentVideoRxStruct['packetErrors'] = 0
+    contentVideoRxStruct['framesReceived'] = 0
+    contentVideoRxStruct['frameErrors'] = 0
+    contentVideoRxStruct['frameRate'] = 0
+    contentVideoRxStruct['fastUpdateRequestsSent'] = 0
+
+    # Assign references
+    audioRx.append(audioRxStruct)
+    audioTx.append(audioTxStruct)
+    videoRx.append(videoRxStruct)
+    videoTx.append(videoTxStruct)
+    auxiliaryAudioRx.append(auxiliaryAudioRxStruct)
+    auxiliaryAudioTx.append(auxiliaryAudioTxStruct)
+    contentVideoRx.append(contentVideoRxStruct)
+    contentVideoTx.append(contentVideoTxStruct)
+
+    return 0
+
+# Send notification to Feedback Receiver after participant diagnostic request
+def participantDiagnosticResponseNotifier(url,participantId):
+    parameters = {'participantID': participantId, 'sourceIdentifier': participantId}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'participantDiagnosticResponse',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(participantDiagnosticResponse) Error'
+  	    return -1
 
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
@@ -1796,6 +1972,7 @@ server.register_function(flex_participant_setMute, 'flex.participant.setMute')
 server.register_function(flex_participant_sendUserMessage, 'flex.participant.sendUserMessage')
 server.register_function(flex_participant_destroy, 'flex.participant.destroy')
 server.register_function(flex_participant_modify, 'flex.participant.modify')
+server.register_function(flex_participant_requestDiagnostics, 'flex.participant.requestDiagnostics')
 server.register_instance(Methods())
 
 """if systemMode==0:

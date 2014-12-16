@@ -13,7 +13,7 @@ port     = '8080'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
 username = "sutapi"
 password = "pwd22ATS!"
-
+participantId = 'redvhclg-pxad-ouot-ipp1-yij9pwg0utfs'
 xmlRpcClient = xmlrpclib.ServerProxy(url,verbose=True,encoding='UTF-8')
 
 def ping(msg):
@@ -23,7 +23,7 @@ def show_version():
   print xmlRpcClient.show_version()
 
 def flex_participant_setMute():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'u6u5hgks-o10g-mbc7-743a-eetfxyf9snwv'}
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'flex.participant.setMute',encoding='UTF-8')
     response = requests.request( 'POST', url,
@@ -39,7 +39,7 @@ def flex_participant_setMute():
   	    return -1
 
 def flex_participant_destroy():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': 'dvnmi9g7-prur-0bjj-ssd9-15of57uuyrxf'}
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'flex.participant.destroy',encoding='UTF-8')
     response = requests.request( 'POST', url,
@@ -52,6 +52,23 @@ def flex_participant_destroy():
         print result
     else:
   	    print '(flex.participant.destroy) Error'
+  	    return -1
+
+
+def flex_participant_requestDiagnostics():
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.requestDiagnostics',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.participant.requestDiagnostics) Error'
   	    return -1
 
 def flex_participant_enumerate():
@@ -173,9 +190,11 @@ try:
 
     #for x in range(1,5,1):
     show_version()
-    #flex_participant_enumerate()
-    #flex_participant_setMute()
-    #flex_participant_destroy()
+
+    flex_participant_enumerate()
+    flex_participant_setMute()
+    flex_participant_requestDiagnostics()
+    flex_participant_destroy()
     #conference_create("AT&T TelePresence")
     #conference_enumerate()
     #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")

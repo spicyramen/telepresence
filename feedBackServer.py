@@ -120,12 +120,11 @@ def eventNotification(msg):
         for element in params:
             if element == 'sourceIdentifier':
                 logging.info('sourceIdentifier param found')
-                print element
                 sourceIdentifier = True
             if element == 'events':
                 logging.info('events param found')
-                print element
 
+        print params
         if (sourceIdentifier):
             xmlResponse = {'status': True}
             return xmlResponse
