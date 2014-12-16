@@ -2,7 +2,7 @@
 
 ###### Emulates Cisco TelePresence Server 8710 API
 
-######Support flex.mode methods:
+######Supported flex.mode methods:
 1. flex.participant.enumerate
 2. flex.participant.setMute
 3. flex.participant.modify
