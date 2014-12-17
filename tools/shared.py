@@ -40,6 +40,7 @@ def modify(n, x, s, A, L):
 if __name__ == '__main__':
     lock = Lock()
 
+
     n = Value('i', 7)
     x = Value(c_double, 1.0/3.0, lock=False)
     s = Array('c', 'hello world', lock=lock)

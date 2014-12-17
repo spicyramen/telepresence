@@ -8,7 +8,7 @@
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
 from threading import Thread
-from multiprocessing import Process,Queue,JoinableQueue
+from multiprocessing import Process,JoinableQueue,Value,Lock
 from os import urandom
 from random import randrange
 from itertools import islice, imap, repeat
@@ -38,7 +38,9 @@ feedBackServerList = {}
 feedBackServerListQueue = JoinableQueue(100)    # 100 is Max Feedback receivers instances
 feedbackReceiverIndex = []
 staticSUTEndpoints = []
-
+participantMediaStatistics = {}                 # This array adds participants Media information
+lock = Lock()
+counter = Value('i', 1)
 
 # Configuration parameters
 configParameters = [
@@ -217,32 +219,19 @@ class Call():
         return self.active
 
 ###########################################################################################
-# Handle XMLRequests from each Feedback Configure requests
-###########################################################################################
-class Subject():
-    #@abstractmethod
-    def register_observer(Observer):
-        """Registers an observer with Subject."""
-        pass
 
-    #@abstractmethod
-    def remove_observer(Observer):
-        """Removes an observer from Subject."""
-        pass
+class Counter(object):
+    def __init__(self, initval=0):
+        self.val = Value('i', initval)
+        self.lock = Lock()
 
-    #@abstractmethod
-    def notify_observers(Observer):
-        """Notifies observers that Subject data has changed."""
-        pass
+    def increment(self):
+        with self.lock:
+            self.val.value += 1
 
-
-class Observer():
-    def __init__(self):
-        self.updated = False
-
-    def update(self):
-        self.updated = True
-
+    def value(self):
+        with self.lock:
+            return self.val.value
 
 ###########################################################################################
 # XML Core
@@ -436,6 +425,7 @@ class ReadWriteFileThread(threading.Thread):
 ###########################################################################################
 # System configuration
 ###########################################################################################
+
 def initializeSystem():
     systemMode = getSystemMode()
     initResult = readConferenceFileConfiguration()
@@ -626,12 +616,39 @@ def callGenerator(maxCalls):
                            addresses)
             # Insert new calls
             callsGenerated.append(newCall)
+            participantMediaStatistics[participantId] = initializeMediaStatistics()
+
             logging.info('callGenerator() call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
     else:
         logging.error('callGenerator() Invalid number of calls configured')
         return -1
 
+    mediaCalls = Process(target=initializeActiveCallsMediaStatistics(participantMediaStatistics,lock,counter))
+    mediaCalls.start()
+    mediaCalls.join()
+
     logging.info('callGenerator() Calls inserted: [' + str(len(callsGenerated)) + ']')
+
+#############################################################################################
+
+def initializeActiveCallsMediaStatistics(activeCalls,lock,c):
+
+    try:
+        print 'initializeActiveCallsMediaStatistics() : ' + str(len(activeCalls)) + ' active calls'
+
+        while True:
+            time.sleep(10.0)
+            print 'initializeActiveCallsMediaStatistics() Processing calls media statistics...'
+            with lock:
+                for participant in activeCalls.keys():
+                    print 'Increasing media statistics: ' + str(c.value)
+                    #http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing
+                c.value *= 1 + (1 + randint(1,5))
+
+    except KeyboardInterrupt:
+        print 'keepAliveController() Exiting...'
+    except Exception, e:
+        print 'keepAliveController() Exception' + str(e)
 
 
 #############################################################################################
@@ -659,7 +676,6 @@ def checkIfParticipantIdExistInMemory(calls,participantID):
 
 def getConferenceGUID():
     return getSystemMode('conferenceGUID')
-
 
 #############################################################################################
 
@@ -698,7 +714,6 @@ def startCallServer():
     else:
         logging.error('Call emulator service failed to start')
         print "Call emulator service failed to start'"
-
 
 #############################################################################################
 
@@ -1825,19 +1840,21 @@ def processParticipantDiagnosticResponse(participantId):
     else:
         logging.info('processParticipantDiagnosticResponse() Packet loss is not active')
 
-# GenerateMediaStatistics
+# initializeMediaStatistics
 
-def generateMediaStatistics(participantId):
+def initializeMediaStatistics():
 
     # Media Arrays
     audioRx = []
     audioTx = []
     videoRx = []
     videoTx = []
+
+    # AuxiliaryAudioRx/Tx VideoRx/Tx
     auxiliaryAudioRx = []
     auxiliaryAudioTx = []
-    contentVideoRx = []
-    contentVideoTx = []
+    contentVideoRx   = []
+    contentVideoTx   = []
 
     # Contents of Structure
     audioRxStruct = {}
@@ -1846,8 +1863,8 @@ def generateMediaStatistics(participantId):
     videoTxStruct = {}
     auxiliaryAudioRxStruct = {}
     auxiliaryAudioTxStruct = {}
-    contentVideoTxStruct = {}
-    contentVideoRxStruct = {}
+    contentVideoTxStruct   = {}
+    contentVideoRxStruct   = {}
 
     # We will populate and increase value for each call. Initial values are stored in a Queue, additional values are added
     # for each call
@@ -2022,4 +2039,5 @@ def telepresenceServer():
 
 
 if __name__ == '__main__':
+
     telepresenceServer()
