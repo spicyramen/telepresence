@@ -12,5 +12,5 @@
 7. feedback receiver, configure and notifications
 
 ##### xmlRpcServer   - Handles API calls
-##### callServer     - Emulate calls
+##### callServer     - Emulate Active calls and media
 ##### feedbackServer - Handles Feedback requests
