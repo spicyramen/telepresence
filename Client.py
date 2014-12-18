@@ -13,7 +13,7 @@ port     = '8080'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
 username = "sutapi"
 password = "pwd22ATS!"
-participantId = 'redvhclg-pxad-ouot-ipp1-yij9pwg0utfs'
+participantId = '7tqnvxdy-ghi1-5lt3-37me-5w5x1v3bn8y7'
 xmlRpcClient = xmlrpclib.ServerProxy(url,verbose=True,encoding='UTF-8')
 
 def ping(msg):
@@ -186,15 +186,13 @@ def list_methods():
 
 try:
     #ping("REQUEST")
-    feedbackReceiver_configure('http://127.0.0.1:9311/RPC2')
-
-    #for x in range(1,5,1):
+    #feedbackReceiver_configure('http://127.0.0.1:9311/RPC2')
     show_version()
-
+    #for x in range(1,5,1):
     flex_participant_enumerate()
     flex_participant_setMute()
-    flex_participant_requestDiagnostics()
-    flex_participant_destroy()
+    #flex_participant_requestDiagnostics()
+    #flex_participant_destroy()
     #conference_create("AT&T TelePresence")
     #conference_enumerate()
     #conference_status("rqdor4jk-aho7-9rap-hodd-je5pbt2ulypp")

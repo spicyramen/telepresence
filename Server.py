@@ -18,6 +18,7 @@ from random import randint
 import time, string, csv, threading, logging, copy, re,os
 import xmlrpclib
 import requests
+import __builtin__
 
 # TODO: Add configuration file for settings via import
 # TODO: Refactoring
@@ -192,7 +193,14 @@ class Call():
         self.connectionState = connectionState
         self.calls = calls
         self.addresses = addresses
+        self.mediaInformation = {}
         print('Call() _init_ instance created participantID: %s' % self.participantID )
+
+    def setMediaInformation(self,mediaInfo):
+        self.mediaInformation = mediaInfo
+
+    def getMediaInformation(self):
+        return self.mediaInformation
 
     def insertCall(self):
         # We insert the call so we can assume format is correct
@@ -526,7 +534,7 @@ def getSystemMode(*args, **kwargs):
 
 def getActiveCallsFromFile():
     logging.info('getActiveCallsFromFile() total number of active calls  in file')
-
+    #TODO
 
 #############################################################################################
 
@@ -575,7 +583,8 @@ def deleteParticipantHelper(participantId):
 
 def callGenerator(maxCalls):
     global callsGenerated
-    logging.info('callGenerator() emulating Calls: ' + maxCalls)
+    global participantMediaStatistics
+    logging.info('callGenerator() Param maxCalls: ' + maxCalls)
     maxCalls = convertStr(maxCalls)
     staticEndpoints = len(staticSUTEndpoints)
 
@@ -597,8 +606,12 @@ def callGenerator(maxCalls):
                 # Insert new calls
                 callsGenerated.append(newCall)
                 logging.info('callGenerator() static call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
+                # No need to add media statistics to Endpoints we ignore
+                # TODO we can add SUT endpoints info based on ACT PHP code
+        else:
+            logging.warning('No CTS endpoints defined')
 
-        logging.info('callGenerator() Creating calls...')
+        logging.info('callGenerator() Creating active new instance calls...')
         for call in range(1, maxCalls + 1):
             #def __init__(self, participantId, active, conferenceId, accessLevel, displayName, connectionState, calls,addresses):
             #participantID,conferenceID,accessLevel,displayName,connectionState,calls,addresses
@@ -616,44 +629,94 @@ def callGenerator(maxCalls):
                            addresses)
             # Insert new calls
             callsGenerated.append(newCall)
+            # Inserte new calls and generate Media information
             participantMediaStatistics[participantId] = initializeMediaStatistics()
-
             logging.info('callGenerator() call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
     else:
         logging.error('callGenerator() Invalid number of calls configured')
         return -1
 
-    mediaCalls = Process(target=initializeActiveCallsMediaStatistics(participantMediaStatistics,lock,counter))
-    mediaCalls.start()
-    mediaCalls.join()
-
     logging.info('callGenerator() Calls inserted: [' + str(len(callsGenerated)) + ']')
+
+
 
 #############################################################################################
 
-def initializeActiveCallsMediaStatistics(activeCalls,lock,c):
+def initializeActiveCallsMediaStatistics(lock,c):
+    """
+    mediaInfo.append(audioRx)          #0
+    mediaInfo.append(audioTx)          #1
+    mediaInfo.append(videoRx)          #2
+    mediaInfo.append(videoTx)          #3
+    mediaInfo.append(auxiliaryAudioRx) #4
+    mediaInfo.append(auxiliaryAudioTx) #5
+    mediaInfo.append(contentVideoRx)   #6
+    mediaInfo.append(contentVideoTx)   #7
+    """
 
     try:
-        print 'initializeActiveCallsMediaStatistics() : ' + str(len(activeCalls)) + ' active calls'
-
+        print 'initializeActiveCallsMediaStatistics() : ' + str(len(participantMediaStatistics)) + ' active calls'
+        mediaStatistics = []
         while True:
             time.sleep(10.0)
-            print 'initializeActiveCallsMediaStatistics() Processing calls media statistics...'
+            print 'initializeActiveCallsMediaStatistics() Updating calls media statistics...'
+            logging.info('initializeActiveCallsMediaStatistics() Updating calls media statistics...')
             with lock:
-                for participant in activeCalls.keys():
-                    print 'Increasing media statistics: ' + str(c.value)
-                    #http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing
-                c.value *= 1 + (1 + randint(1,5))
+                for participant in participantMediaStatistics.keys():
+
+                    logging.info('Increasing media statistics... ')
+                    logging.info('-------------------------------------------------------------------')
+
+                    mediaStatistics = participantMediaStatistics[participant]
+                    #audioRxStruct
+                    mediaStatistics[0][0]['packetsReceived'] +=c.value + (1 + randint(1,10))
+                    mediaStatistics[0][0]['framesReceived'] +=c.value + (1 + randint(1,10))
+                    #
+                    logging.info('Updating audioRx')
+                    logging.info('audioRx packetsReceived: ' + str(mediaStatistics[0][0]['packetsReceived']))
+                    logging.info('audioRx framesReceived : ' + str(mediaStatistics[0][0]['framesReceived']))
+
+                    #audioTxStruct
+                    mediaStatistics[1][0]['packetsSent'] +=c.value + (1 + randint(1,10))
+                    mediaStatistics[1][0]['packetsLost'] += (1 + randint(1,10))
+                    #
+                    logging.info('Updating audioTx')
+                    logging.info('audioTx packetsLost: ' + str(mediaStatistics[1][0]['packetsLost']))
+                    logging.info('audioTx packetsSent: ' + str(mediaStatistics[1][0]['packetsSent']))
+
+                    #videoRxStruct
+                    mediaStatistics[2][0]['packetsReceived'] +=c.value + (1 + randint(1,10))
+                    mediaStatistics[2][0]['packetErrors'] += (1 + randint(1,10))
+                    mediaStatistics[2][0]['framesReceived'] +=c.value + (1 + randint(1,10))
+                    mediaStatistics[2][0]['frameErrors'] += (1 + randint(1,10))
+                    #
+                    logging.info('Updating videoRx')
+                    logging.info('videoRx packetsReceived: ' + str(mediaStatistics[2][0]['packetsReceived']))
+                    logging.info('videoRx packetErrors: ' + str(mediaStatistics[2][0]['packetErrors']))
+                    logging.info('videoRx framesReceived: ' + str(mediaStatistics[2][0]['framesReceived']))
+                    logging.info('videoRx frameErrors: ' + str(mediaStatistics[2][0]['frameErrors']))
+
+
+                    #videoTxStruct
+                    mediaStatistics[3][0]['packetsSent'] +=c.value + (1 + randint(1,10))
+                    mediaStatistics[3][0]['packetsLost'] += (1 + randint(1,10))
+                    logging.info('Updating videoTx')
+                    logging.info('videoTx packetsLost: ' + str(mediaStatistics[3][0]['packetsLost']))
+                    logging.info('videoTx packetsSent: ' + str(mediaStatistics[3][0]['packetsSent']))
+
+                c.value += 900 + (1 + randint(1,10))
+                #http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing
 
     except KeyboardInterrupt:
-        print 'keepAliveController() Exiting...'
+        print 'initializeActiveCallsMediaStatistics() Exiting...'
     except Exception, e:
-        print 'keepAliveController() Exception' + str(e)
+        print 'initializeActiveCallsMediaStatistics() Exception' + str(e)
 
 
 #############################################################################################
 
 def getActiveCallsbyParticipantId(participantId):
+    global activeParticipantInformationCache
     logging.info('getActiveCallsParticipantId() total number of active calls: ' + str(len(activeParticipantInformationCache)))
     for participant in activeParticipantInformationCache:
         call = processParticipantInformation(participant)
@@ -711,6 +774,10 @@ def startCallServer():
         getStaticSUTEndPoints()
         callGenerator(getSystemMode("maxCalls"))
         insertActiveCallsToFile()
+        getActiveParticipantList()
+        mediaCalls = Process(target=initializeActiveCallsMediaStatistics(lock,counter))
+        mediaCalls.start()
+        mediaCalls.join()
     else:
         logging.error('Call emulator service failed to start')
         print "Call emulator service failed to start'"
@@ -954,7 +1021,7 @@ def validateDataFromFile(fileRecords, type, check):
                         if paramNumber != 8:
                             logging.info("validateDataFromFile() Invalid data paramNumber: " + str(paramNumber))
                             return -1
-
+                    logging.info('validateDataFromFile() About to check call information in cache...')
                     #Active field is just used for internal purposes
                     updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,
                                                  calls,addresses)
@@ -985,6 +1052,7 @@ def validateDataFromFile(fileRecords, type, check):
                         addresses = field
                     paramNumber += 1
                  #Active field is just used for internal purposes
+                logging.info('Insert call information in cache')
                 updateParticipantInformation(participantID, active, conferenceID, accessLevel, displayName, connectionState,calls,addresses)
     else:
         return -1
@@ -1501,7 +1569,7 @@ def getCookieValue():
 
 def getActiveParticipantList():
     try:
-        logging.info("getActiveParticipantList() : " + systemParticipantList)
+        logging.info("getActiveParticipantList() from File: " + systemParticipantList)
         participantsProcessed = []
 
         threadRead = ReadWriteFileThread("Thread-Read", 2, systemParticipantList, "r", "")
@@ -1514,7 +1582,8 @@ def getActiveParticipantList():
         else:
             logging.error("getActiveParticipantList() No active participants obtained from cached")
 
-        logging.info("getActiveParticipantList() Participants processed: " + str(len(participantsProcessed)))
+        logging.info("getActiveParticipantList() Total participants processed: " + str(len(participantsProcessed)))
+        logging.info('getActiveParticipantList() Participants in cached: ' + str(len(activeParticipantInformationCache)))
         if len(participantsProcessed)>=1:
             #return Arr
             return participantsProcessed
@@ -1878,7 +1947,7 @@ def initializeMediaStatistics():
     audioRxStruct['packetsMissing'] = 0
     audioRxStruct['framesReceived'] = 11000
     audioRxStruct['frameErrors'] = 0
-    audioRxStruct['muted'] = True
+    audioRxStruct['muted'] = False
     audioRxStruct['clearPathOverhead'] = 0
     audioRxStruct['clearPathRecovered'] = 0
 
@@ -1953,7 +2022,17 @@ def initializeMediaStatistics():
     contentVideoRx.append(contentVideoRxStruct)
     contentVideoTx.append(contentVideoTxStruct)
 
-    return 0
+    #This Array of Arrays contain all initial Media Information
+    mediaInfo = []
+    mediaInfo.append(audioRx)          #0
+    mediaInfo.append(audioTx)          #1
+    mediaInfo.append(videoRx)          #2
+    mediaInfo.append(videoTx)          #3
+    mediaInfo.append(auxiliaryAudioRx) #4
+    mediaInfo.append(auxiliaryAudioTx) #5
+    mediaInfo.append(contentVideoRx)   #6
+    mediaInfo.append(contentVideoTx)   #7
+    return mediaInfo
 
 # Send notification to Feedback Receiver after participant diagnostic request
 def participantDiagnosticResponseNotifier(url,participantId):
@@ -2020,14 +2099,17 @@ def telepresenceServer():
         cc = Process(target=startCallServer)
         keepaliveInit = Process(target=keepAliveController)
 
+
         """Start xmlServer and callServer"""
         xml.start()
         cc.start()
         keepaliveInit.start()
 
+
         xml.join()
         cc.join()
         keepaliveInit.join()
+
 
     except KeyboardInterrupt:
         print "Cisco TelePresence Server 8710 Emulator stopping...."
@@ -2039,5 +2121,4 @@ def telepresenceServer():
 
 
 if __name__ == '__main__':
-
     telepresenceServer()
