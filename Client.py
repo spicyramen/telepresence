@@ -13,7 +13,8 @@ port     = '8080'
 url      = 'http://' + hostname + ':' + port + '/RPC2'
 username = "sutapi"
 password = "pwd22ATS!"
-participantId = '7tqnvxdy-ghi1-5lt3-37me-5w5x1v3bn8y7'
+conferenceId  = '8ca0c690-dd82-11e2-84f9-000d7c112b10'
+participantId = 'umh774we-avzq-9ckc-4q2x-o6u8ibpchk97'
 xmlRpcClient = xmlrpclib.ServerProxy(url,verbose=True,encoding='UTF-8')
 
 def ping(msg):
@@ -21,22 +22,6 @@ def ping(msg):
 
 def show_version():
   print xmlRpcClient.show_version()
-
-def flex_participant_setMute():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId}
-    params = tuple([parameters])
-    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.setMute',encoding='UTF-8')
-    response = requests.request( 'POST', url,
-                             data = xmlrpccall,
-                             headers = { 'Content-Type': 'application/xml' },
-                             timeout = 100,
-                             stream = False, )
-    if response.status_code == 200:
-        result = xmlrpclib.loads( response.content, )[ 0 ]
-        print result
-    else:
-  	    print '(flex.participant.setMute) Error'
-  	    return -1
 
 def flex_participant_destroy():
     parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId}
@@ -56,7 +41,8 @@ def flex_participant_destroy():
 
 
 def flex_participant_requestDiagnostics():
-    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId}
+    receiverUri = 'http://127.0.0.1:9311/RPC2'
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId, 'receiverURI':receiverUri, 'sourceIdentifier':participantId}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'flex.participant.requestDiagnostics',encoding='UTF-8')
     response = requests.request( 'POST', url,
@@ -92,6 +78,63 @@ def flex_participant_enumerate():
   	    print '(flex.participant.enumerate) Error'
   	    return -1
 
+def flex_participant_setMute():
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId, 'audioRxMute': True}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.setMute',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.participant.setMute) Error'
+  	    return -1
+
+def flex_conference_modify():
+
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'conferenceID': conferenceId,'voiceSwitchingSensitivity': 75}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.conference.modify',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.conference.modify) Error'
+  	    return -1
+
+def flex_participant_modify():
+    optionalParams = {}
+    optionalParams['audioRxStartMuted'] = True
+    optionalParams['videoRxStartMuted'] = True
+    optionalParams['indicateMuting'] = True
+    optionalParams['allowStartSixMuting'] = True
+    optionalParams['displayDefaultLayoutSingleScreen'] = 'layoutSingle'
+    optionalParams['displayDefaultLayoutMultiScreen'] = 'layoutSingle'
+    optionalParams['displayForceDefaultLayout'] = True
+
+    parameters = {'authenticationUser':username,'authenticationPassword':password,'participantID': participantId,'callAttributes': optionalParams}
+    params = tuple([parameters])
+    xmlrpccall = xmlrpclib.dumps(params,'flex.participant.modify',encoding='UTF-8')
+    response = requests.request( 'POST', url,
+                             data = xmlrpccall,
+                             headers = { 'Content-Type': 'application/xml' },
+                             timeout = 100,
+                             stream = False, )
+    if response.status_code == 200:
+        result = xmlrpclib.loads( response.content, )[ 0 ]
+        print result
+    else:
+  	    print '(flex.participant.modify) Error'
+  	    return -1
 #= 'http://12.120.192.135:9311/RPC2'
 def feedbackReceiver_configure(uri):
   if uri:
@@ -191,6 +234,8 @@ try:
     #for x in range(1,5,1):
     flex_participant_enumerate()
     flex_participant_setMute()
+    flex_participant_modify()
+    flex_conference_modify()
     #flex_participant_requestDiagnostics()
     #flex_participant_destroy()
     #conference_create("AT&T TelePresence")

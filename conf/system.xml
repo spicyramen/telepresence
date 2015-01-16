@@ -7,13 +7,13 @@
 <buildVersion>13.0(1.48)</buildVersion>
 <mode>flex</mode>
 <callControl>True</callControl>
-<maxCalls>5</maxCalls>
+<maxCalls>3</maxCalls>
 <cts1000>16305558000</cts1000>
 <cts3000>16305558001</cts3000>
 <conferenceGUID>8ca0c690-dd82-11e2-84f9-000d7c112b10</conferenceGUID>
 <emulatePacketLoss>True</emulatePacketLoss>
 <hostName>dt12b7</hostName>
-<ipAddress>172.16.1.10</ipAddress>
+<ipAddress>127.0.0.1</ipAddress>
 <ipAddressV6>2001:420:40ff:ff0a:20d:7cff:fe10:21c3</ipAddressV6>
 <macAddress>00:0D:7C:11:21:C3</macAddress>
 <gatekeeperUsage>Yes</gatekeeperUsage>

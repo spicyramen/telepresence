@@ -629,15 +629,14 @@ def callGenerator(maxCalls):
                            addresses)
             # Insert new calls
             callsGenerated.append(newCall)
-            # Inserte new calls and generate Media information
+            # Insert new calls and generate Media information, get Array from initializeMediaStatistics function
             participantMediaStatistics[participantId] = initializeMediaStatistics()
-            logging.info('callGenerator() call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now')
+            logging.info('callGenerator() call added into activeCalls. [' + str(len(callsGenerated)) + '] active calls now. Participant: ' + participantId)
     else:
         logging.error('callGenerator() Invalid number of calls configured')
         return -1
 
-    logging.info('callGenerator() Calls inserted: [' + str(len(callsGenerated)) + ']')
-
+    logging.info('callGenerator() Total calls inserted including SUT endpoints: [' + str(len(callsGenerated)) + ']')
 
 
 #############################################################################################
@@ -655,24 +654,23 @@ def initializeActiveCallsMediaStatistics(lock,c):
     """
 
     try:
-        print 'initializeActiveCallsMediaStatistics() : ' + str(len(participantMediaStatistics)) + ' active calls'
+        print 'initializeActiveCallsMediaStatistics() : ' + str(len(participantMediaStatistics)) + ' active customer calls'
         mediaStatistics = []
         while True:
             time.sleep(10.0)
-            print 'initializeActiveCallsMediaStatistics() Updating calls media statistics...'
+            print 'initializeActiveCallsMediaStatistics() Calls in progress...(updating media statistics)'
             logging.info('initializeActiveCallsMediaStatistics() Updating calls media statistics...')
             with lock:
                 for participant in participantMediaStatistics.keys():
-
-                    logging.info('Increasing media statistics... ')
                     logging.info('-------------------------------------------------------------------')
-
+                    logging.info('Increasing media statistics... ' + str(participant))
+                    logging.info('-------------------------------------------------------------------')
                     mediaStatistics = participantMediaStatistics[participant]
                     #audioRxStruct
                     mediaStatistics[0][0]['packetsReceived'] +=c.value + (1 + randint(1,10))
                     mediaStatistics[0][0]['framesReceived'] +=c.value + (1 + randint(1,10))
                     #
-                    logging.info('Updating audioRx')
+                    logging.info('Updating audioRx:')
                     logging.info('audioRx packetsReceived: ' + str(mediaStatistics[0][0]['packetsReceived']))
                     logging.info('audioRx framesReceived : ' + str(mediaStatistics[0][0]['framesReceived']))
 
@@ -680,7 +678,7 @@ def initializeActiveCallsMediaStatistics(lock,c):
                     mediaStatistics[1][0]['packetsSent'] +=c.value + (1 + randint(1,10))
                     mediaStatistics[1][0]['packetsLost'] += (1 + randint(1,10))
                     #
-                    logging.info('Updating audioTx')
+                    logging.info('Updating audioTx:')
                     logging.info('audioTx packetsLost: ' + str(mediaStatistics[1][0]['packetsLost']))
                     logging.info('audioTx packetsSent: ' + str(mediaStatistics[1][0]['packetsSent']))
 
@@ -690,7 +688,7 @@ def initializeActiveCallsMediaStatistics(lock,c):
                     mediaStatistics[2][0]['framesReceived'] +=c.value + (1 + randint(1,10))
                     mediaStatistics[2][0]['frameErrors'] += (1 + randint(1,10))
                     #
-                    logging.info('Updating videoRx')
+                    logging.info('Updating videoRx:')
                     logging.info('videoRx packetsReceived: ' + str(mediaStatistics[2][0]['packetsReceived']))
                     logging.info('videoRx packetErrors: ' + str(mediaStatistics[2][0]['packetErrors']))
                     logging.info('videoRx framesReceived: ' + str(mediaStatistics[2][0]['framesReceived']))
@@ -700,7 +698,7 @@ def initializeActiveCallsMediaStatistics(lock,c):
                     #videoTxStruct
                     mediaStatistics[3][0]['packetsSent'] +=c.value + (1 + randint(1,10))
                     mediaStatistics[3][0]['packetsLost'] += (1 + randint(1,10))
-                    logging.info('Updating videoTx')
+                    logging.info('Updating videoTx:')
                     logging.info('videoTx packetsLost: ' + str(mediaStatistics[3][0]['packetsLost']))
                     logging.info('videoTx packetsSent: ' + str(mediaStatistics[3][0]['packetsSent']))
 
@@ -774,7 +772,6 @@ def startCallServer():
         getStaticSUTEndPoints()
         callGenerator(getSystemMode("maxCalls"))
         insertActiveCallsToFile()
-        getActiveParticipantList()
         mediaCalls = Process(target=initializeActiveCallsMediaStatistics(lock,counter))
         mediaCalls.start()
         mediaCalls.join()
@@ -1776,6 +1773,7 @@ def flex_participant_sendUserMessage(msg):
             logging.error('flex_participant_sendUserMessage() participantID not found')
             return fault_code(systemErrors[5], 5)
 
+
 def flex_participant_destroy(msg):
     print "flex_participant_destroy() API flex.participant.destroy"
     logInfo("flex_participant_destroy() API flex.participant.destroy")
@@ -1812,6 +1810,39 @@ def flex_participant_destroy(msg):
             logging.error('flex_participant_destroy() participantID not found')
             return fault_code(systemErrors[5], 5)
 
+
+def flex_conference_modify(msg):
+    print "flex_conference_modify() API flex_conference_modify"
+    logging.info('flex_conference_modify')
+    conferenceId = getConferenceGUID()
+    # Mandatory
+    # participantId
+    params = xml_RequestHandler(msg)
+    xmlResponse = []
+
+
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'conferenceID':
+                logging.info('conferenceID param found')
+                conferenceReq = params.get('conferenceID')
+                if conferenceReq == conferenceId:
+                    logging.info('conferenceID is active')
+                    conferenceFound = True
+        if (conferenceFound):
+            xmlResponse = {'status': 'operation succesful'}
+            return xmlResponse
+        else:
+            logging.error('flex_participant_modify() conferenceID not found')
+            return fault_code(systemErrors[4], 4)
+
+
 def flex_participant_modify(msg):
     print "flex_participant_modify() API flex.participant.modify"
     logInfo("flex_participant_modify() API flex.participant.modify")
@@ -1847,13 +1878,13 @@ def flex_participant_modify(msg):
 def flex_participant_requestDiagnostics(msg):
     print "flex_participant_requestDiagnostics() API flex.participant.requestDiagnostics"
     logInfo("flex_participant_requestDiagnostics() API flex.participant.requestDiagnostics")
-    # Optional parameters:
+    #TODO Optional parameters:
 
-    # Mandatory
+    # Mandatory parameters
     # participantId
+    participantFound = False
     params = xml_RequestHandler(msg)
     xmlResponse = []
-    participantFound = False
 
     if (params == 34):
         return fault_code(systemErrors[34], 34)
@@ -1864,17 +1895,21 @@ def flex_participant_requestDiagnostics(msg):
         # Verify authentication and then collect other parameters
         for element in params:
             if element == 'participantID':
-                logging.info('participantId param found')
+                logging.info('flex_participant_requestDiagnostics() participantId param found')
                 participantReq = params.get('participantID')
                 if getActiveCallsbyParticipantId(participantReq):
-                    logging.info('participantId is active')
+                    logging.info('flex_participant_requestDiagnostics() participantId is active')
                     participantFound = True
                     processParticipantDiagnosticResponse(participantReq)
+                else:
+                    logging.error('flex_participant_requestDiagnostics participantId is not active')
+                    participantFound = False
         if (participantFound):
+            # I already notified Feedback receiver in a different Thread. Once is finished notify client in this main Thread
             xmlResponse = {'status': 'operation succesful'}
             return xmlResponse
         else:
-            logging.error('flex_participant_modify() participantID not found')
+            logging.error('flex_participant_requestDiagnostics() participantID not found')
             return fault_code(systemErrors[5], 5)
 
 
@@ -1897,22 +1932,22 @@ def notifyFeedBackReceiverClients(participantId):
 def processParticipantDiagnosticResponse(participantId):
 
     if getSystemMode("emulatePacketLoss") == 'True':
-        logging.info('processParticipantDiagnosticResponse() Packet loss will be emulated for each method call')
+        logging.info('processParticipantDiagnosticResponse() Packet loss is being emulated for each method call emulatePacketLoss: TRUE')
         if getActiveCallsbyParticipantId(participantId):
-                    logging.info('participantId is active')
-                    participantFound = True
-                    # Now we send to Feedback Receiver port
+                    logging.info('processParticipantDiagnosticResponse participantId is active')
+                    # Now we send participant Information to Feedback Receiver client+port in Array
                     notifyFeedBackReceiverClients(participantId)
         else:
             logging.warning('processParticipantDiagnosticResponse() Participant not found')
             return -1
     else:
-        logging.info('processParticipantDiagnosticResponse() Packet loss is not active')
+        logging.info('processParticipantDiagnosticResponse() Packet loss is not active. emulatePacketLoss: FALSE')
+
 
 # initializeMediaStatistics
+""" Initialize Audio, Video and Presentation sharing information, returns Array"""
 
 def initializeMediaStatistics():
-
     # Media Arrays
     audioRx = []
     audioTx = []
@@ -2036,6 +2071,7 @@ def initializeMediaStatistics():
 
 # Send notification to Feedback Receiver after participant diagnostic request
 def participantDiagnosticResponseNotifier(url,participantId):
+    logging.info('participantDiagnosticResponseNotifier sending notification to ' + participantId)
     parameters = {'participantID': participantId, 'sourceIdentifier': participantId}
     params = tuple([parameters])
     xmlrpccall = xmlrpclib.dumps(params,'participantDiagnosticResponse',encoding='UTF-8')
@@ -2051,6 +2087,8 @@ def participantDiagnosticResponseNotifier(url,participantId):
   	    print '(participantDiagnosticResponse) Error'
   	    return -1
 
+
+
 # Register an instance; all the methods of the instance are published as XML-RPC methods (in this case, just 'div').
 class Methods:
     def show_version(self):
@@ -2061,6 +2099,8 @@ class Methods:
 # Create server
 server = SimpleXMLRPCServer((hostname, port), requestHandler=XmlRequestHandler, logRequests=True)
 server.register_function(ping_function, 'ping')
+# flexmode conference modify
+server.register_function(flex_conference_modify, 'flex.conference.modify')
 # flexmode
 server.register_function(feedbackReceiver_configure, 'feedbackReceiver.configure')
 server.register_function(flex_participant_enumerate, 'flex.participant.enumerate')
@@ -2069,6 +2109,7 @@ server.register_function(flex_participant_sendUserMessage, 'flex.participant.sen
 server.register_function(flex_participant_destroy, 'flex.participant.destroy')
 server.register_function(flex_participant_modify, 'flex.participant.modify')
 server.register_function(flex_participant_requestDiagnostics, 'flex.participant.requestDiagnostics')
+
 server.register_instance(Methods())
 
 """if systemMode==0:
@@ -2094,22 +2135,21 @@ def telepresenceServer():
         """initialize system"""
         initializeSystem()
         feedbackReceiverInitialize()
-
         xml = Process(target=startXmlRpc)
         cc = Process(target=startCallServer)
         keepaliveInit = Process(target=keepAliveController)
 
-
-        """Start xmlServer and callServer"""
+        """Start xmlServer, callServer and keepAlive server"""
         xml.start()
         cc.start()
         keepaliveInit.start()
 
-
+        # xmlServer emulates Telepresence Server API messages
+        # cc Server emulates calls from system.xml file, including SUT endpoints
+        # keepAlive emulates TPS server is running under normal condition
         xml.join()
         cc.join()
         keepaliveInit.join()
-
 
     except KeyboardInterrupt:
         print "Cisco TelePresence Server 8710 Emulator stopping...."
@@ -2117,8 +2157,6 @@ def telepresenceServer():
     except Exception, e:
         print "Exception found" + str(e)
         logging.exception("Exception found " + str(e))
-
-
 
 if __name__ == '__main__':
     telepresenceServer()

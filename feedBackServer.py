@@ -102,6 +102,33 @@ def fault_code(string, code):
     logInfo(xmlResponse)
     return xmlResponse
 
+def participantDiagnosticResponse(msg):
+    print 'participantDiagnosticResponse API participantDiagnosticResponse'
+    logInfo('participantDiagnosticResponse API participantDiagnosticResponse')
+    params = copy.deepcopy(msg)
+    xmlResponse = []
+    if (params == 34):
+        return fault_code(systemErrors[34], 34)
+    elif (params == 101):
+        return fault_code(systemErrors[101], 101)
+    else:
+        #Participants
+        # Verify authentication and then collect other parameters
+        for element in params:
+            if element == 'sourceIdentifier':
+                logging.info('sourceIdentifier param found')
+                sourceIdentifier = True
+            if element == 'participantID':
+                logging.info('participantID param found')
+
+        print params
+        if (sourceIdentifier):
+            xmlResponse = {'status': True}
+            return xmlResponse
+        else:
+            logging.error('participantDiagnosticResponse')
+            return fault_code(systemErrors[5], 5)
+
 def eventNotification(msg):
     print "eventNotification() API eventNotification"
     logInfo("eventNotification() API eventNotification")
@@ -134,7 +161,7 @@ def eventNotification(msg):
 
 server = SimpleXMLRPCServer((hostname, port), requestHandler=XmlRequestHandler, logRequests=True)
 server.register_function(eventNotification, 'eventNotification')
-
+server.register_function(participantDiagnosticResponse,'participantDiagnosticResponse')
 
 def feedbackServer():
     logging.basicConfig(filename='logs/feedback.log', level=logging.INFO,
